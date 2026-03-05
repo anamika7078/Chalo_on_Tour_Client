@@ -1,0 +1,267 @@
+/* Print styles for PDF are in app/globals.css (body * / .pdf-root-print) – CSS Modules cannot use global selectors */
+
+/* ===== PDF PAGE ===== */
+.pdfRoot {
+    width: 210mm;
+    margin: 0 auto;
+    background: #ffffff;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 11pt;
+    color: #000000;
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.12);
+}
+
+.page {
+    position: relative;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 30px 50px;
+    box-sizing: border-box;
+    page-break-after: always;
+    background-color: #fff;
+    border: 1px solid #eee;
+    margin-bottom: 20px;
+}
+
+/* Page border from image */
+.pageBody {
+    border: 2px solid #000;
+    padding: 20px;
+    height: 100%;
+    min-height: calc(297mm - 100px);
+    position: relative;
+    z-index: 1;
+}
+
+.watermark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-30deg);
+    opacity: 0.08;
+    z-index: 0;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* ===== HEADER ===== */
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.logoBox {
+    margin-bottom: 10px;
+}
+
+.logoImg {
+    max-width: 220px;
+    height: auto;
+}
+
+.mainTitle {
+    color: #c62828;
+    font-size: 22pt;
+    font-weight: bold;
+    font-style: italic;
+    margin-top: 10px;
+}
+
+/* ===== IMAGES SECTION ===== */
+.imageSection {
+    margin-bottom: 20px;
+}
+
+.mainImageWrap {
+    width: 100%;
+    height: 300px;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+}
+
+.subImagesGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.subImageWrap {
+    width: 100%;
+    height: 180px;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #ddd;
+}
+
+/* ===== SECTION HEADERS ===== */
+.sectionHeader {
+    text-align: center;
+    margin: 30px 0 15px;
+}
+
+.headingBox {
+    display: inline-block;
+    padding: 8px 30px;
+    font-size: 16pt;
+    font-weight: bold;
+    color: #ffffff;
+    border-radius: 4px;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.redBgHeader {
+    background-color: #c62828;
+}
+
+.blueBgHeader {
+    background-color: #1565c0;
+}
+
+/* Backwards compatibility for text types */
+.textRed {
+    color: #c62828;
+}
+
+.textBlue {
+    color: #1565c0;
+}
+
+/* ===== TABLES ===== */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+    border: 2px solid #000;
+}
+
+.table th,
+.table td {
+    border: 1px solid #000;
+    padding: 6px 10px;
+    text-align: left;
+    font-size: 10pt;
+}
+
+.table th {
+    background-color: #f5f5f5;
+    text-align: center;
+}
+
+.summaryTable td:first-child {
+    width: 40px;
+    text-align: center;
+}
+
+/* ===== ITINERARY ===== */
+.dayLabel {
+    display: inline-block;
+    background-color: #ffeb3b;
+    font-weight: bold;
+    padding: 2px 8px;
+    border: 1px solid #000;
+    margin-bottom: 5px;
+}
+
+.itineraryTitle {
+    color: #c62828;
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.itineraryContent {
+    margin-bottom: 15px;
+    line-height: 1.5;
+}
+
+.placesTitle {
+    color: #c62828;
+    font-weight: bold;
+    text-decoration: underline;
+    margin-top: 10px;
+    margin-bottom: 5px;
+}
+
+.placesList {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.placeItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 6px;
+    font-size: 10.5pt;
+    line-height: 1.4;
+}
+
+.bulletIcon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.iconWrapper {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ===== FOOTER / SIGNATURE ===== */
+.footer {
+    margin-top: 30px;
+}
+
+.footerNote {
+    text-align: center;
+    font-size: 9pt;
+    margin-bottom: 20px;
+    font-style: italic;
+}
+
+.signatureGrid {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.namasteBox {
+    text-align: center;
+}
+
+.namasteImg {
+    width: 50px;
+    height: 50px;
+}
+
+.companyInfoFooter {
+    text-align: right;
+}
+
+.companyLink {
+    color: #0d47a1;
+    font-weight: bold;
+    text-decoration: underline;
+    font-size: 13pt;
+}
+
+.ceoName {
+    font-weight: bold;
+    color: #000;
+    margin-top: 5px;
+}
+
+.contactNumbers {
+    color: #c62828;
+    font-weight: bold;
+}
