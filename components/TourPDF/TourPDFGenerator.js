@@ -4,14 +4,6 @@ import Image from 'next/image';
 import { forwardRef } from 'react';
 import styles from './TourPDF.module.css';
 
-// SVG Icons
-const NamasteIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={styles.namasteImg}>
-        <path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2z" />
-        <path d="M12 6v6l4 2" />
-    </svg>
-);
-
 const FingerPointIcon = () => (
     <svg viewBox="0 0 24 24" fill="#c62828" className={styles.bulletIcon} width="16" height="16">
         <path d="M21,7.24a3,3,0,0,0-5.64-1.41l-3.32,6.64A3,3,0,1,1,6.72,9.72L12,4.44l1.41,1.41-5.28,5.28a1,1,0,1,0,1.41,1.41l5.29-5.29A3,3,0,0,1,21,7.24Z" />
@@ -20,6 +12,12 @@ const FingerPointIcon = () => (
         <path d="M12,15a1,1,0,0,1-1-1V12.5a1,1,0,0,1,2,0V14A1,1,0,0,1,12,15Z" />
     </svg>
 );
+
+const getListItems = (value) =>
+    String(value || '')
+        .split(/\r?\n/)
+        .map((item) => item.replace(/^[\s•\-]+/, '').trim())
+        .filter(Boolean);
 
 const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
     const {
@@ -48,14 +46,23 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
         // Notes
         accommodationNote,
         flightNote,
+        inclusions,
+        exclusions,
+        memorableTrip,
         // Footer / contact
         ceoName,
         cell1,
         cell2,
-        // Doc meta
-        quoteNumber,
-        quoteDate,
+        companyEmail,
+        companyWebsite,
     } = data;
+
+    const inclusionItems = getListItems(inclusions);
+    const exclusionItems = getListItems(exclusions);
+    const uploadedImages = [heroMain, heroSub1, heroSub2].filter(Boolean);
+    const tripTitle = destinations?.trim()
+        ? `Let's Explore ${destinations}`
+        : "Let's Explore Your Trip";
 
     return (
         <div className={`${styles.pdfRoot} pdf-root-print`} ref={ref} id="pdf-document">
@@ -63,7 +70,7 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
             <section className={styles.page}>
                 <div className={styles.watermark}>
                     <Image
-                        src="/chalo-on-tour-e1766686260447.png"
+                        src="/Chalo-on-tour.jpg.jpeg"
                         alt="Watermark"
                         width={400}
                         height={160}
@@ -74,7 +81,7 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
                     <div className={styles.header}>
                         <div className={styles.logoBox}>
                             <Image
-                                src="/chalo-on-tour-e1766686260447.png"
+                                src="/Chalo-on-tour.jpg.jpeg"
                                 alt="Chalo On Tour"
                                 width={200}
                                 height={80}
@@ -82,40 +89,37 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
                                 unoptimized
                             />
                         </div>
-                        <h1 className={styles.mainTitle}>Let's Explore Vaishnodevi & Amritsar</h1>
+                        <h1 className={styles.mainTitle}>{tripTitle}</h1>
                     </div>
 
-                    <div className={styles.imageSection}>
-                        <div className={styles.mainImageWrap}>
-                            <Image
-                                src={heroMain || "https://images.unsplash.com/photo-1594911772125-07fc7a2d8d9f?q=80&w=2070&auto=format&fit=crop"}
-                                alt="Main Tour Image"
-                                fill
-                                style={{ objectFit: 'cover' }}
-                                unoptimized
-                            />
-                        </div>
-                        <div className={styles.subImagesGrid}>
-                            <div className={styles.subImageWrap}>
+                    {uploadedImages.length > 0 && (
+                        <div className={styles.imageSection}>
+                            <div className={uploadedImages.length === 1 ? styles.singleImageWrap : styles.mainImageWrap}>
                                 <Image
-                                    src={heroSub1 || "https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?q=80&w=1974&auto=format&fit=crop"}
-                                    alt="Secondary Tour Image 1"
+                                    src={uploadedImages[0]}
+                                    alt="Main Tour Image"
                                     fill
                                     style={{ objectFit: 'cover' }}
                                     unoptimized
                                 />
                             </div>
-                            <div className={styles.subImageWrap}>
-                                <Image
-                                    src={heroSub2 || "https://images.unsplash.com/photo-1621840212003-7f287e0767ce?q=80&w=2070&auto=format&fit=crop"}
-                                    alt="Secondary Tour Image 2"
-                                    fill
-                                    style={{ objectFit: 'cover' }}
-                                    unoptimized
-                                />
-                            </div>
+                            {uploadedImages.length > 1 && (
+                                <div className={styles.subImagesGrid}>
+                                    {uploadedImages.slice(1).map((imageSrc, index) => (
+                                        <div key={index} className={styles.subImageWrap}>
+                                            <Image
+                                                src={imageSrc}
+                                                alt={`Secondary Tour Image ${index + 1}`}
+                                                fill
+                                                style={{ objectFit: 'cover' }}
+                                                unoptimized
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    </div>
+                    )}
 
                     <div className={styles.sectionHeader}>
                         <div className={`${styles.headingBox} ${styles.blueBgHeader}`}>Tour Summary: -</div>
@@ -142,7 +146,7 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
             <section className={styles.page}>
                 <div className={styles.watermark}>
                     <Image
-                        src="/chalo-on-tour-e1766686260447.png"
+                        src="/Chalo-on-tour.jpg.jpeg"
                         alt="Watermark"
                         width={400}
                         height={160}
@@ -262,7 +266,7 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
             <section className={styles.page}>
                 <div className={styles.watermark}>
                     <Image
-                        src="/chalo-on-tour-e1766686260447.png"
+                        src="/Chalo-on-tour.jpg.jpeg"
                         alt="Watermark"
                         width={400}
                         height={160}
@@ -292,24 +296,61 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
                         </div>
                     ))}
 
+                    {(inclusionItems.length > 0 || exclusionItems.length > 0) && (
+                        <>
+                            {inclusionItems.length > 0 && (
+                                <div className={styles.optionalSection}>
+                                    <div className={styles.optionalHeading}>Package Inclusions</div>
+                                    <ul className={styles.optionalList}>
+                                        {inclusionItems.map((item, index) => (
+                                            <li key={`inc-${index}`} className={styles.optionalListItem}>
+                                                <FingerPointIcon />
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {exclusionItems.length > 0 && (
+                                <div className={styles.optionalSection}>
+                                    <div className={styles.optionalHeading}>Package Exclusions</div>
+                                    <ul className={styles.optionalList}>
+                                        {exclusionItems.map((item, index) => (
+                                            <li key={`exc-${index}`} className={styles.optionalListItem}>
+                                                <FingerPointIcon />
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {memorableTrip && (
+                        <div className={styles.memorableTripBox}>
+                            <div className={styles.memorableTripHeading}>Tip For Memorable Trip</div>
+                            <p className={styles.memorableTripText}>{memorableTrip}</p>
+                        </div>
+                    )}
+
                     <div className={styles.footer}>
                         <p className={`${styles.textBlue} ${styles.bold}`}>
-                            It's time to say goodbye Vaishnodevi Amritsar Tour — Phir Milenge!!!
+                            Thank You
                         </p>
                         <p className={styles.footerNote}>
                             Let's stay connected via email, phone, WhatsApp, Facebook, Instagram, and more. We look forward to seeing you again on another memorable Chalo On Tour Trip.
                         </p>
+                        <div style={{ height: '32px' }}></div>
 
-                        <div className={styles.signatureGrid}>
-                            <div className={styles.namasteBox}>
-                                <NamasteIcon />
-                            </div>
-                            <div className={styles.companyInfoFooter}>
-                                <div className={styles.regards}>Thanks & Regards</div>
-                                <div className={styles.companyLink}>CHALO ON TOUR</div>
-                                <div className={styles.ceoName}>{ceoName || 'Mr. Utkarsh Kale (C.E.O.)'}</div>
-                                <div className={styles.contactNumbers}>Cell: - {cell1} / {cell2}</div>
-                            </div>
+                        <div className={styles.companyInfoFooter}>
+                            <div className={styles.regards}>Thanks & Regards</div>
+                            <div className={styles.companyLink}>CHALO ON TOUR</div>
+                            <div className={styles.ceoName}>{ceoName || 'Mr. Utkarsh Kale (C.E.O.)'}</div>
+                            <div className={styles.contactNumbers}>Cell: - {cell1} / {cell2}</div>
+                            <div className={styles.contactLine}>Mail ID: - <span className={styles.companyLinkInline}>{companyEmail || 'bookings@chaloontour.com'}</span></div>
+                            <div className={styles.contactLine}>Website: - <span className={styles.companyLinkInline}>{companyWebsite || 'www.chaloontour.com'}</span></div>
                         </div>
                     </div>
                 </div>

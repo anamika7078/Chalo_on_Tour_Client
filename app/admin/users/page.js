@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '../../../components/Layout/DashboardLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
-import { UserCog, Users, LogIn, Mail, Phone, Shield, Eye, Pencil, Trash2, X, Loader2 } from 'lucide-react';
+import { UserCog, Users, LogIn, Mail, Phone, Shield, Eye, Pencil, Trash2, X, Loader2, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const LOGGED_IN_WINDOW_MS = 15 * 60 * 1000;
@@ -32,6 +32,21 @@ const fetchDetails = () => api.get('/users/details').then((r) => ({
   totalUsers: r.data?.totalUsers ?? 0,
 }));
 
+const getErrorMessage = (err, fallback) =>
+  err?.response?.data?.message ||
+  err?.response?.data?.errors?.[0]?.msg ||
+  fallback;
+
+const createInitialAddForm = () => ({
+  firstName: '',
+  lastName: '',
+  email: '',
+  password: '',
+  role: 'staff',
+  phone: '',
+  isActive: true,
+});
+
 export default function AdminUsersPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -40,6 +55,9 @@ export default function AdminUsersPage() {
   const [totalUsers, setTotalUsers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [viewUser, setViewUser] = useState(null);
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [addForm, setAddForm] = useState(createInitialAddForm());
+  const [addSaving, setAddSaving] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', role: 'staff', phone: '', isActive: true });
   const [editSaving, setEditSaving] = useState(false);
@@ -86,6 +104,17 @@ export default function AdminUsersPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">User details</h1>
+          <button
+            type="button"
+            onClick={() => {
+              setAddForm(createInitialAddForm());
+              setAddUserOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+          >
+            <UserPlus className="h-4 w-4" />
+            Add user
+          </button>
         </div>
 
         {/* Summary cards */}
@@ -211,6 +240,84 @@ export default function AdminUsersPage() {
           </div>
         )}
 
+        {/* Add modal */}
+        {addUserOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !addSaving && setAddUserOpen(false)}>
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Add user</h3>
+                  <p className="text-sm text-gray-500 mt-1">This user can log in with the email and password you set here.</p>
+                </div>
+                <button type="button" onClick={() => !addSaving && setAddUserOpen(false)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"><X className="h-5 w-5" /></button>
+              </div>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setAddSaving(true);
+                try {
+                  await api.post('/users', {
+                    ...addForm,
+                    firstName: addForm.firstName.trim(),
+                    lastName: addForm.lastName.trim(),
+                    email: addForm.email.trim(),
+                    password: addForm.password.trim(),
+                    phone: addForm.phone.trim(),
+                  });
+                  toast.success('User created');
+                  setAddUserOpen(false);
+                  setAddForm(createInitialAddForm());
+                  loadDetails();
+                } catch (err) {
+                  toast.error(getErrorMessage(err, 'Failed to create user'));
+                } finally {
+                  setAddSaving(false);
+                }
+              }} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+                    <input type="text" value={addForm.firstName} onChange={(e) => setAddForm((f) => ({ ...f, firstName: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+                    <input type="text" value={addForm.lastName} onChange={(e) => setAddForm((f) => ({ ...f, lastName: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" value={addForm.email} onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                  <input type="password" value={addForm.password} onChange={(e) => setAddForm((f) => ({ ...f, password: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" minLength={6} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                  <select value={addForm.role} onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white">
+                    <option value="staff">Staff</option>
+                    <option value="superadmin">Super Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input type="tel" value={addForm.phone} onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="add-active" checked={addForm.isActive} onChange={(e) => setAddForm((f) => ({ ...f, isActive: e.target.checked }))} className="rounded border-gray-300 text-red-600 focus:ring-red-500" />
+                  <label htmlFor="add-active" className="text-sm font-medium text-gray-700">Active</label>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => !addSaving && setAddUserOpen(false)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
+                  <button type="submit" disabled={addSaving} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-60 inline-flex items-center gap-2">
+                    {addSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                    Create
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Edit modal */}
         {editUser && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !editSaving && setEditUser(null)}>
@@ -228,7 +335,7 @@ export default function AdminUsersPage() {
                   setEditUser(null);
                   loadDetails();
                 } catch (err) {
-                  toast.error(err.response?.data?.message || 'Update failed');
+                  toast.error(getErrorMessage(err, 'Update failed'));
                 } finally {
                   setEditSaving(false);
                 }
@@ -290,7 +397,7 @@ export default function AdminUsersPage() {
                     setDeleteUserId(null);
                     loadDetails();
                   } catch (err) {
-                    toast.error(err.response?.data?.message || 'Failed to deactivate');
+                    toast.error(getErrorMessage(err, 'Failed to deactivate'));
                   } finally {
                     setDeleteLoading(false);
                   }

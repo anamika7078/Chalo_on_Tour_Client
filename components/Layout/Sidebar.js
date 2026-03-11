@@ -12,7 +12,7 @@ const items = [
   { name: 'Trip plans', href: '/admin/trips', icon: MapPin },
   { name: 'Package Templates', href: '/admin/templates', icon: Package },
  
-  { name: 'Tour PDF', href: '/admin/tour-pdf', icon: FileText, superadminOnly: true },
+  // { name: 'Tour PDF', href: '/admin/tour-pdf', icon: FileText, superadminOnly: true },
   { name: 'Invoices', href: '/admin/invoices', icon: FileSpreadsheet },
   { name: 'Users', href: '/admin/users', icon: UserCog, superadminOnly: true },
   { name: 'Profile', href: '/admin/profile', icon: UserCircle },

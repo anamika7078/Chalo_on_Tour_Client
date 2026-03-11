@@ -5,8 +5,10 @@ import DashboardLayout from '../../../components/Layout/DashboardLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
 import Link from 'next/link';
-import { Calendar, Bell, DollarSign, ArrowRight, Clock } from 'lucide-react';
+import { Calendar, Bell, DollarSign, ArrowRight, Clock, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const getTodayDateString = () => new Date().toISOString().slice(0, 10);
 
 export default function CalendarPage() {
   const { user, loading: authLoading } = useAuth();
@@ -17,8 +19,20 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(30);
   const [search, setSearch] = useState('');
+  const [showSetReminderModal, setShowSetReminderModal] = useState(false);
+  const [leadOptions, setLeadOptions] = useState([]);
+  const [leadSearch, setLeadSearch] = useState('');
+  const [loadingLeadOptions, setLoadingLeadOptions] = useState(false);
+  const [savingReminder, setSavingReminder] = useState(false);
+  const [reminderForm, setReminderForm] = useState({
+    leadId: '',
+    date: getTodayDateString(),
+    note: '',
+  });
 
-  useEffect(() => {
+  const todayDate = getTodayDateString();
+
+  const loadReminders = () => {
     if (!user || authLoading) return;
     setLoading(true);
     api
@@ -35,7 +49,24 @@ export default function CalendarPage() {
         setTripReminders([]);
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadReminders();
   }, [user, authLoading, days]);
+
+  useEffect(() => {
+    if (!showSetReminderModal || !user || authLoading) return;
+    setLoadingLeadOptions(true);
+    api
+      .get('/leads', { params: { limit: 500, recent: 1 } })
+      .then((r) => setLeadOptions(r.data.leads || []))
+      .catch(() => {
+        toast.error('Failed to load leads');
+        setLeadOptions([]);
+      })
+      .finally(() => setLoadingLeadOptions(false));
+  }, [showSetReminderModal, user, authLoading]);
 
   if (authLoading || !user) return null;
 
@@ -58,6 +89,82 @@ export default function CalendarPage() {
   const filteredFollowups = followupReminders.filter(matchesSearch);
   const filteredTrips = tripReminders.filter(matchesSearch);
   const filteredPayments = paymentReminders.filter(matchesSearch);
+  const filteredLeadOptions = !leadSearch.trim()
+    ? leadOptions
+    : leadOptions.filter((lead) => {
+        const query = leadSearch.trim().toLowerCase();
+        const fields = [lead.name, lead.leadId, lead.destination, lead.email, lead.phone];
+        return fields.some((field) => field && String(field).toLowerCase().includes(query));
+      });
+  const selectedLead = leadOptions.find((lead) => lead._id === reminderForm.leadId) || null;
+
+  const resetReminderForm = () => {
+    setReminderForm({
+      leadId: '',
+      date: getTodayDateString(),
+      note: '',
+    });
+    setLeadSearch('');
+  };
+
+  const openSetReminderModal = (prefill = {}) => {
+    setReminderForm({
+      leadId: prefill.leadId || '',
+      date: getTodayDateString(),
+      note: prefill.note || '',
+    });
+    setLeadSearch('');
+    setShowSetReminderModal(true);
+  };
+
+  const closeSetReminderModal = () => {
+    if (savingReminder) return;
+    setShowSetReminderModal(false);
+    resetReminderForm();
+  };
+
+  const handleReminderFieldChange = (field, value) => {
+    setReminderForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSetReminder = async (e) => {
+    e.preventDefault();
+    if (!reminderForm.leadId) {
+      toast.error('Please select a lead');
+      return;
+    }
+    if (!reminderForm.date) {
+      toast.error('Please select a reminder date');
+      return;
+    }
+    if (reminderForm.date < todayDate) {
+      toast.error('Previous dates are not allowed');
+      return;
+    }
+
+    setSavingReminder(true);
+    try {
+      const leadResponse = await api.get(`/leads/${reminderForm.leadId}`);
+      const existingFollowups = Array.isArray(leadResponse.data?.lead?.followups) ? leadResponse.data.lead.followups : [];
+      const nextFollowups = [
+        ...existingFollowups,
+        {
+          date: reminderForm.date,
+          note: reminderForm.note.trim() || 'Reminder',
+        },
+      ].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      await api.put(`/leads/${reminderForm.leadId}`, { followups: nextFollowups });
+      toast.success('Reminder set successfully');
+      setShowSetReminderModal(false);
+      resetReminderForm();
+      loadReminders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to set reminder');
+    } finally {
+      setSavingReminder(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -65,6 +172,14 @@ export default function CalendarPage() {
         <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-3 mb-4">
           <h1 className="text-xl font-bold text-primary-900">Reminders</h1>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openSetReminderModal()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700"
+            >
+              <Plus className="h-4 w-4" />
+              Set Reminder
+            </button>
             <label className="text-sm text-gray-600">Next</label>
             <select
               value={days}
@@ -120,12 +235,21 @@ export default function CalendarPage() {
                             {r.destination && ` · ${r.destination}`}
                           </p>
                         </div>
-                        <Link
-                          href={`/admin/leads/${r.leadId}`}
-                          className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 flex-shrink-0"
-                        >
-                          Open <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openSetReminderModal({ leadId: r.leadId, note: r.note || 'Follow-up' })}
+                            className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                          >
+                            Set Reminder
+                          </button>
+                          <Link
+                            href={`/admin/leads/${r.leadId}`}
+                            className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700"
+                          >
+                            Open <ArrowRight className="h-3.5 w-3.5" />
+                          </Link>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -201,12 +325,21 @@ export default function CalendarPage() {
                                 {formatCurrency(r.remaining_amount)}
                               </p>
                             </div>
-                            <Link
-                              href={`/admin/leads/${r.leadId}`}
-                              className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 flex-shrink-0"
-                            >
-                              Open <ArrowRight className="h-3.5 w-3.5" />
-                            </Link>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => openSetReminderModal({ leadId: r.leadId, note: 'Trip follow-up' })}
+                                className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                              >
+                                Set Reminder
+                              </button>
+                              <Link
+                                href={`/admin/leads/${r.leadId}`}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700"
+                              >
+                                Open <ArrowRight className="h-3.5 w-3.5" />
+                              </Link>
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -238,12 +371,21 @@ export default function CalendarPage() {
                                 {formatCurrency(r.remaining_amount)} · {r.payment_status}
                               </p>
                             </div>
-                            <Link
-                              href={`/admin/leads/${r.leadId}`}
-                              className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 flex-shrink-0"
-                            >
-                              Open <ArrowRight className="h-3.5 w-3.5" />
-                            </Link>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => openSetReminderModal({ leadId: r.leadId, note: 'Payment follow-up' })}
+                                className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                              >
+                                Set Reminder
+                              </button>
+                              <Link
+                                href={`/admin/leads/${r.leadId}`}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700"
+                              >
+                                Open <ArrowRight className="h-3.5 w-3.5" />
+                              </Link>
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -276,12 +418,21 @@ export default function CalendarPage() {
                                   {formatCurrency(r.remaining_amount)} · {r.payment_status}
                                 </p>
                               </div>
-                              <Link
-                                href={`/admin/leads/${r.leadId}`}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700 flex-shrink-0"
-                              >
-                                Open <ArrowRight className="h-3.5 w-3.5" />
-                              </Link>
+                              <div className="flex items-center gap-3 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => openSetReminderModal({ leadId: r.leadId, note: 'Advance payment follow-up' })}
+                                  className="text-sm font-medium text-primary-600 hover:text-primary-700"
+                                >
+                                  Set Reminder
+                                </button>
+                                <Link
+                                  href={`/admin/leads/${r.leadId}`}
+                                  className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 hover:text-primary-700"
+                                >
+                                  Open <ArrowRight className="h-3.5 w-3.5" />
+                                </Link>
+                              </div>
                             </li>
                           ))}
                       </ul>
@@ -293,6 +444,101 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
+      {showSetReminderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-primary-900">Set Reminder</h2>
+                <p className="text-sm text-gray-500">Choose a lead and reminder date.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeSetReminderModal}
+                className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSetReminder} className="space-y-4 px-6 py-5">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Search Lead</label>
+                <input
+                  type="text"
+                  value={leadSearch}
+                  onChange={(e) => setLeadSearch(e.target.value)}
+                  placeholder="Search by name, lead ID, destination, phone..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Lead</label>
+                <select
+                  value={reminderForm.leadId}
+                  onChange={(e) => handleReminderFieldChange('leadId', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                  disabled={loadingLeadOptions}
+                >
+                  <option value="">{loadingLeadOptions ? 'Loading leads...' : 'Select a lead'}</option>
+                  {filteredLeadOptions.map((lead) => (
+                    <option key={lead._id} value={lead._id}>
+                      {lead.name}
+                      {lead.leadId ? ` (${lead.leadId})` : ''}
+                      {lead.destination ? ` - ${lead.destination}` : ''}
+                    </option>
+                  ))}
+                </select>
+                {!loadingLeadOptions && leadSearch && filteredLeadOptions.length === 0 && (
+                  <p className="mt-1 text-xs text-gray-500">No leads found for this search.</p>
+                )}
+              </div>
+              {selectedLead && (
+                <div className="rounded-lg border border-primary-100 bg-primary-50/60 px-3 py-2 text-sm text-primary-900">
+                  {selectedLead.name}
+                  {selectedLead.leadId && ` (${selectedLead.leadId})`}
+                  {selectedLead.destination && ` · ${selectedLead.destination}`}
+                </div>
+              )}
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Reminder Date</label>
+                <input
+                  type="date"
+                  min={todayDate}
+                  value={reminderForm.date}
+                  onChange={(e) => handleReminderFieldChange('date', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Note</label>
+                <textarea
+                  value={reminderForm.note}
+                  onChange={(e) => handleReminderFieldChange('note', e.target.value)}
+                  rows={3}
+                  placeholder="Add a short reminder note"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  onClick={closeSetReminderModal}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingReminder}
+                  className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-700 disabled:opacity-60"
+                >
+                  {savingReminder ? 'Saving...' : 'Save Reminder'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

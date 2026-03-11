@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../../../components/Layout/DashboardLayout';
 import TourPDFDocument from '../../../components/TourPDF/TourPDFGenerator';
+import { api } from '../../../lib/api';
 import {
     FileText, Plus, Trash2, Download, Eye, EyeOff, Printer,
     ChevronDown, ChevronUp, Plane, Hotel, MapPin, Info
@@ -44,6 +46,9 @@ const defaultData = () => ({
         { from: 'Amritsar', depDate: '10/04/2026', depTime: '11:20 PM', to: 'Pune', arrDate: '11/04/2026', arrTime: '01:00 AM', airline: 'IndiGo', flightNo: '6E-6129', pnr: 'M7RHMM' },
     ],
     flightNote: 'Flight rates and seats may change at the time of final booking.',
+    inclusions: '',
+    exclusions: '',
+    memorableTrip: '',
     // itinerary
     itinerary: [
         {
@@ -95,7 +100,108 @@ const defaultData = () => ({
     ceoName: 'Mr. Utkarsh Kale (C.E.O.)',
     cell1: '9960625167',
     cell2: '9136549898',
+    companyEmail: 'bookings@chaloontour.com',
+    companyWebsite: 'www.chaloontour.com',
 });
+
+const formatDate = (value, options = { day: '2-digit', month: '2-digit', year: 'numeric' }) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-IN', options);
+};
+
+const buildPaxLabel = (lead) => {
+    if (Array.isArray(lead?.paxBreakup) && lead.paxBreakup.length > 0) {
+        return lead.paxBreakup
+            .map((item) => [item?.count != null ? item.count : null, item?.type].filter(Boolean).join(' ').trim())
+            .filter(Boolean)
+            .join(', ');
+    }
+
+    if (lead?.paxCount != null && lead?.paxType) {
+        return `${lead.paxCount} ${lead.paxType}`.trim();
+    }
+
+    if (lead?.paxCount != null) {
+        return String(lead.paxCount);
+    }
+
+    return '';
+};
+
+const buildTourDuration = (lead) => {
+    return [
+        lead?.tourNights != null && `${lead.tourNights} Nights`,
+        lead?.tourDays != null && `${lead.tourDays} Days`,
+    ].filter(Boolean).join(' / ');
+};
+
+const mapLeadToTourPdfData = (lead) => {
+    const base = defaultData();
+    const images = Array.isArray(lead?.tripImages) ? lead.tripImages.filter(Boolean) : [];
+    const destinations = Array.isArray(lead?.destinations) && lead.destinations.length > 0
+        ? lead.destinations.join(', ')
+        : (lead?.destination || '');
+
+    return {
+        ...base,
+        quoteNumber: lead?.leadId || '',
+        quoteDate: formatDate(lead?.createdAt, { day: '2-digit', month: 'short', year: 'numeric' }),
+        perPersonCost: lead?.packageCostPerPerson != null
+            ? String(lead.packageCostPerPerson)
+            : (lead?.total_amount != null ? String(lead.total_amount) : ''),
+        totalPax: buildPaxLabel(lead),
+        vehicleType: lead?.vehicleType || '',
+        hotelCategory: lead?.hotelCategory || '',
+        mealPlan: lead?.mealPlan || '',
+        tourDuration: buildTourDuration(lead),
+        tourDateFrom: formatDate(lead?.tourStartDate || lead?.travel_date),
+        tourDateTo: formatDate(lead?.tourEndDate || lead?.travel_date),
+        pickupPoint: lead?.pickupPoint || '',
+        dropPoint: lead?.dropPoint || '',
+        destinations,
+        heroMain: images[0] || '',
+        heroSub1: images[1] || '',
+        heroSub2: images[2] || '',
+        hotels: Array.isArray(lead?.accommodation)
+            ? lead.accommodation.map((hotel) => ({
+                name: hotel?.hotelName || '',
+                nights: hotel?.nights != null ? `${hotel.nights} Night${hotel.nights === 1 ? '' : 's'}` : '',
+                roomCategory: hotel?.roomType || '',
+                roomSharing: hotel?.sharing || '',
+                destination: hotel?.destination || '',
+            }))
+            : [],
+        accommodationNote: '',
+        flights: Array.isArray(lead?.flights)
+            ? lead.flights.map((flight) => ({
+                from: flight?.from || '',
+                depDate: '',
+                depTime: '',
+                to: flight?.to || '',
+                arrDate: '',
+                arrTime: '',
+                airline: flight?.airline || '',
+                flightNo: '',
+                pnr: flight?.pnr || '',
+            }))
+            : [],
+        flightNote: '',
+        inclusions: lead?.inclusions || '',
+        exclusions: lead?.exclusions || '',
+        memorableTrip: lead?.memorableTrip || '',
+        itinerary: Array.isArray(lead?.itinerary)
+            ? lead.itinerary.map((day, index) => ({
+                dayLabel: `Day ${day?.day != null ? day.day : index + 1}`,
+                date: formatDate(day?.date, { day: '2-digit', month: 'long', year: 'numeric' }),
+                title: day?.route || '',
+                description: day?.description || '',
+                places: Array.isArray(day?.places) ? day.places.filter(Boolean) : [],
+            }))
+            : [],
+    };
+};
 
 /* ─────────────────── SECTION HEADER ──────────────── */
 function SectionCard({ icon: Icon, title, children, accent = 'blue' }) {
@@ -141,7 +247,47 @@ const textareaCls = `${inputCls} resize-none`;
 export default function TourPDFPage() {
     const [data, setData] = useState(defaultData());
     const [preview, setPreview] = useState(false);
+    const [loadingLeadData, setLoadingLeadData] = useState(false);
     const pdfRef = useRef(null);
+    const searchParams = useSearchParams();
+    const leadId = searchParams.get('leadId');
+    const shouldPreviewLead = searchParams.get('preview') === '1';
+
+    useEffect(() => {
+        if (!shouldPreviewLead) return;
+        setPreview(true);
+    }, [shouldPreviewLead]);
+
+    useEffect(() => {
+        if (!leadId) return;
+
+        let isMounted = true;
+
+        const loadLead = async () => {
+            setLoadingLeadData(true);
+            try {
+                const response = await api.get(`/leads/${leadId}`);
+                if (!isMounted) return;
+                setData(mapLeadToTourPdfData(response.data?.lead || {}));
+                if (shouldPreviewLead) {
+                    setPreview(true);
+                }
+            } catch (error) {
+                if (!isMounted) return;
+                toast.error(error.response?.data?.message || 'Failed to load lead for Tour PDF preview.');
+            } finally {
+                if (isMounted) {
+                    setLoadingLeadData(false);
+                }
+            }
+        };
+
+        loadLead();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [leadId, shouldPreviewLead]);
 
     /* generic updater */
     const set = useCallback((field, value) => {
@@ -243,7 +389,7 @@ export default function TourPDFPage() {
         window.print();
 
         setTimeout(() => {
-            document.head.removeChild(style);
+            style.parentNode?.removeChild(style);
             if (printRoot) printRoot.style.display = 'none';
         }, 1000);
     };
@@ -321,11 +467,14 @@ export default function TourPDFPage() {
                 pagebreak: { mode: 'css' },
             };
             await html2pdf().set(opt).from(clone).save();
-            document.body.removeChild(wrapper);
+            wrapper.parentNode?.removeChild(wrapper);
             toast.success('PDF downloaded successfully!');
         } catch (err) {
             console.error(err);
             toast.error('Download failed. Try Print instead.');
+            if (wrapper.parentNode) {
+                wrapper.parentNode.removeChild(wrapper);
+            }
         }
     };
 
@@ -371,7 +520,7 @@ export default function TourPDFPage() {
         a.download = `Tour-Quotation-Chalo-On-Tour-${Date.now()}.doc`;
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
+        a.parentNode?.removeChild(a);
         URL.revokeObjectURL(url);
 
         toast.success('Word file downloaded successfully!');
@@ -387,7 +536,11 @@ export default function TourPDFPage() {
                             <FileText className="h-5 w-5 text-blue-600" />
                             Tour PDF Generator
                         </h1>
-                        <p className="text-sm text-gray-500 mt-0.5">Fill in the tour details and download a professional quotation PDF.</p>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                            {leadId
+                                ? (loadingLeadData ? 'Loading selected lead into preview...' : 'Previewing the selected lead. You can download PDF, download Word, or print.')
+                                : 'Fill in the tour details and download a professional quotation PDF.'}
+                        </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         <button
@@ -425,7 +578,6 @@ export default function TourPDFPage() {
                 </div>
 
                 <div className={`grid gap-6 ${preview ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
-                    {/* ── FORM COLUMN ── */}
                     <div className="flex flex-col gap-4">
 
                         {/* Quote Meta */}
@@ -455,7 +607,7 @@ export default function TourPDFPage() {
                                 {(data.heroMain || data.heroSub1 || data.heroSub2) && (
                                     <>
                                         <p className="text-xs text-gray-500">
-                                            These images appear on the first page (one large + two small). If fewer than 3 are uploaded, defaults will be used for the rest.
+                                            These images appear on the first page. Only uploaded images will be shown in the PDF.
                                         </p>
                                         <div className="grid grid-cols-3 gap-3">
                                             {['heroMain', 'heroSub1', 'heroSub2'].map((key, idx) => (
@@ -468,7 +620,7 @@ export default function TourPDFPage() {
                                                             // eslint-disable-next-line @next/next/no-img-element
                                                             <img src={data[key]} alt={key} className="w-full h-full object-cover" />
                                                         ) : (
-                                                            <span className="text-[11px] text-gray-400">Will use default image</span>
+                                                            <span className="text-[11px] text-gray-400">No image added</span>
                                                         )}
                                                     </div>
                                                 </div>
@@ -715,6 +867,38 @@ export default function TourPDFPage() {
                             </div>
                         </SectionCard>
 
+                        <SectionCard icon={FileText} title="Package Inclusions / Exclusions" accent="green">
+                            <div className="grid grid-cols-1 gap-3">
+                                <Field label="Package Inclusions">
+                                    <textarea
+                                        className={textareaCls}
+                                        rows={4}
+                                        value={data.inclusions}
+                                        onChange={e => set('inclusions', e.target.value)}
+                                        placeholder="One inclusion per line"
+                                    />
+                                </Field>
+                                <Field label="Package Exclusions">
+                                    <textarea
+                                        className={textareaCls}
+                                        rows={4}
+                                        value={data.exclusions}
+                                        onChange={e => set('exclusions', e.target.value)}
+                                        placeholder="One exclusion per line"
+                                    />
+                                </Field>
+                                <Field label="Tip For Memorable Trip">
+                                    <textarea
+                                        className={textareaCls}
+                                        rows={4}
+                                        value={data.memorableTrip}
+                                        onChange={e => set('memorableTrip', e.target.value)}
+                                        placeholder="Add a memorable closing message or helpful trip tips"
+                                    />
+                                </Field>
+                            </div>
+                        </SectionCard>
+
                         {/* Contact */}
                         <SectionCard icon={Info} title="Company Contact Details" accent="blue">
                             <div className="grid grid-cols-3 gap-3">
@@ -727,6 +911,12 @@ export default function TourPDFPage() {
                                 <Field label="Cell 2">
                                     <input className={inputCls} value={data.cell2} onChange={e => set('cell2', e.target.value)} placeholder="9136549898" />
                                 </Field>
+                                <Field label="Mail ID" className="col-span-3">
+                                    <input className={inputCls} value={data.companyEmail} onChange={e => set('companyEmail', e.target.value)} placeholder="bookings@chaloontour.com" />
+                                </Field>
+                                <Field label="Website" className="col-span-3">
+                                    <input className={inputCls} value={data.companyWebsite} onChange={e => set('companyWebsite', e.target.value)} placeholder="www.chaloontour.com" />
+                                </Field>
                             </div>
                         </SectionCard>
                     </div>
@@ -734,32 +924,7 @@ export default function TourPDFPage() {
                     {/* ── PREVIEW COLUMN ── */}
                     {preview && (
                         <div className="flex flex-col gap-3">
-                            <div className="flex items-center justify-between">
-                                <p className="text-sm font-semibold text-gray-700">PDF Preview</p>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={handleDirectDownload}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
-                                    >
-                                        <Download size={13} />
-                                        Download PDF
-                                    </button>
-                                    <button
-                                        onClick={handleDownloadWord}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors"
-                                    >
-                                        <FileText size={13} />
-                                        Download Word
-                                    </button>
-                                    <button
-                                        onClick={handleDirectPrint}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-600 text-white rounded-lg text-xs font-medium hover:bg-gray-700 transition-colors"
-                                    >
-                                        <Printer size={13} />
-                                        Print
-                                    </button>
-                                </div>
-                            </div>
+                            <p className="text-sm font-semibold text-gray-700">PDF Preview</p>
                             <div
                                 className="overflow-auto rounded-xl border border-gray-200 shadow-inner bg-gray-100 p-3"
                                 style={{ maxHeight: '90vh' }}

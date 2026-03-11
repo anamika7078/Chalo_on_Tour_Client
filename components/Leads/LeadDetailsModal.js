@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Edit, MapPin, Building2, Route, CheckCircle, XCircle, FileDown, CreditCard, AlertCircle, Plane, Banknote } from 'lucide-react';
+import { X, Edit, MapPin, Building2, Route, CheckCircle, XCircle, FileDown, CreditCard, AlertCircle, Plane, Banknote, ImagePlus } from 'lucide-react';
 import { api } from '../../lib/api';
 import toast from 'react-hot-toast';
 
@@ -79,6 +79,12 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
   const created = createdDate ? new Date(createdDate).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–';
   const assigned = lead?.assigned_to;
   const assignedName = assigned && (typeof assigned === 'object') ? `${assigned.firstName || ''} ${assigned.lastName || ''}`.trim() : '–';
+  const paxBreakupSummary = Array.isArray(lead?.paxBreakup) && lead.paxBreakup.length
+    ? lead.paxBreakup
+        .map((item) => [item?.count != null ? item.count : null, item?.type].filter(Boolean).join(' ').trim())
+        .filter(Boolean)
+        .join(', ')
+    : ([lead?.paxCount, lead?.paxType].filter(Boolean).length ? `${lead.paxCount ?? ''} ${lead.paxType ?? ''}`.trim() : null);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 no-print p-4">
@@ -145,17 +151,35 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
             </div>
             <div className="p-4 space-y-0">
               <InfoRow label="01. Total Package Cost" value={lead?.total_amount != null ? `Rs.${Number(lead.total_amount).toLocaleString('en-IN')}/-` : null} />
-              <InfoRow label="02. Total No of Pax" value={[lead?.paxCount, lead?.paxType].filter(Boolean).length ? `${lead.paxCount ?? ''} ${lead.paxType ?? ''}`.trim() : null} />
-              <InfoRow label="03. Vehicle Type" value={lead?.vehicleType} />
-              <InfoRow label="04. Hotel Category" value={lead?.hotelCategory} />
-              <InfoRow label="05. Meal Plan" value={lead?.mealPlan} />
-              <InfoRow label="06. Tour Duration" value={[lead?.tourNights != null && `${lead.tourNights} Nights`, lead?.tourDays != null && `${lead.tourDays} Days`].filter(Boolean).join(' / ') || null} />
-              <InfoRow label="07. Tour Date" value={lead?.tourStartDate && lead?.tourEndDate ? `${new Date(lead.tourStartDate).toLocaleDateString('en-GB')} to ${new Date(lead.tourEndDate).toLocaleDateString('en-GB')}` : (lead?.travel_date ? new Date(lead.travel_date).toLocaleDateString('en-GB') : null)} />
-              <InfoRow label="08. Pick up" value={lead?.pickupPoint} />
-              <InfoRow label="09. Drop" value={lead?.dropPoint} />
-              <InfoRow label="10. Destinations" value={Array.isArray(lead?.destinations) && lead.destinations.length > 0 ? lead.destinations.join(', ') : lead?.destination} />
+              <InfoRow label="02. Package Cost Per Person" value={lead?.packageCostPerPerson != null ? `Rs.${Number(lead.packageCostPerPerson).toLocaleString('en-IN')}/-` : null} />
+              <InfoRow label="03. Total No. of Pax" value={lead?.paxCount != null ? String(lead.paxCount) : null} />
+              <InfoRow label="04. Pax Type Breakdown" value={paxBreakupSummary} />
+              <InfoRow label="05. Vehicle Type" value={lead?.vehicleType} />
+              <InfoRow label="06. Hotel Category" value={lead?.hotelCategory} />
+              <InfoRow label="07. Meal Plan" value={lead?.mealPlan} />
+              <InfoRow label="08. Tour Duration" value={[lead?.tourNights != null && `${lead.tourNights} Nights`, lead?.tourDays != null && `${lead.tourDays} Days`].filter(Boolean).join(' / ') || null} />
+              <InfoRow label="09. Tour Date" value={lead?.tourStartDate && lead?.tourEndDate ? `${new Date(lead.tourStartDate).toLocaleDateString('en-GB')} to ${new Date(lead.tourEndDate).toLocaleDateString('en-GB')}` : (lead?.travel_date ? new Date(lead.travel_date).toLocaleDateString('en-GB') : null)} />
+              <InfoRow label="10. Pick up" value={lead?.pickupPoint} />
+              <InfoRow label="11. Drop" value={lead?.dropPoint} />
+              <InfoRow label="12. Destinations" value={Array.isArray(lead?.destinations) && lead.destinations.length > 0 ? lead.destinations.join(', ') : lead?.destination} />
             </div>
           </div>
+          {Array.isArray(lead?.tripImages) && lead.tripImages.length > 0 && (
+            <div className="rounded-xl border border-gray-200 overflow-hidden mt-4">
+              <div className="px-4 py-3 bg-purple-50 border-b border-purple-100 flex items-center gap-2">
+                <ImagePlus className="h-5 w-5 text-purple-600" />
+                <h3 className="font-semibold text-gray-900">Trip Images</h3>
+              </div>
+              <div className="p-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {lead.tripImages.map((image, i) => (
+                  <div key={i} className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={image} alt={`Trip ${i + 1}`} className="h-32 w-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {/* Accommodation: - (same as PDF) – always show */}
           <div className="rounded-xl border border-gray-200 overflow-hidden mt-4">
             <div className="px-4 py-3 bg-[#1565c0] flex items-center gap-2">
@@ -250,6 +274,7 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
                     <th className="px-4 py-2 font-semibold text-gray-700">To</th>
                     <th className="px-4 py-2 font-semibold text-gray-700">Airline Info</th>
                     <th className="px-4 py-2 font-semibold text-gray-700">PNR / Booking</th>
+                    <th className="px-4 py-2 font-semibold text-gray-700">Fare (Rs)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -261,11 +286,12 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
                         <td className="px-4 py-2 text-gray-700">{f.to || '–'}</td>
                         <td className="px-4 py-2 text-gray-700">{f.airline || '–'}</td>
                         <td className="px-4 py-2 text-gray-700">{f.pnr || '–'}</td>
+                        <td className="px-4 py-2 text-gray-700">{f.fare != null ? `Rs.${Number(f.fare).toLocaleString('en-IN')}/-` : '–'}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={5} className="px-4 py-3 text-center text-gray-500">No flight details added.</td>
+                      <td colSpan={6} className="px-4 py-3 text-center text-gray-500">No flight details added.</td>
                     </tr>
                   )}
                 </tbody>
@@ -328,6 +354,32 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
                   </div>
                   <div className="p-4">
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.cancellation_policy.trim()}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {(lead?.termsAndConditions?.trim() || lead?.memorableTrip?.trim()) && (
+            <div className="mt-4 space-y-4">
+              {lead.termsAndConditions?.trim() && (
+                <div className="rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-slate-600" />
+                    <h3 className="font-semibold text-gray-900">Terms And Conditions</h3>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.termsAndConditions.trim()}</p>
+                  </div>
+                </div>
+              )}
+              {lead.memorableTrip?.trim() && (
+                <div className="rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-rose-50 border-b border-rose-100 flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-rose-600" />
+                    <h3 className="font-semibold text-gray-900">Memorable Trip</h3>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{lead.memorableTrip.trim()}</p>
                   </div>
                 </div>
               )}

@@ -177,234 +177,73 @@ export default function AdminLeadsPage() {
   const [showUploadExcelModal, setShowUploadExcelModal] = useState(false)
   const [uploadExcelFile, setUploadExcelFile] = useState(null)
   const [uploadExcelLoading, setUploadExcelLoading] = useState(false)
+  const [duplicatingLeadId, setDuplicatingLeadId] = useState(null)
+
+  const insertLeadBelowSource = (existingLeads, sourceLeadId, duplicatedLead) => {
+    const nextLeads = [...existingLeads]
+    const sourceIndex = nextLeads.findIndex(item => String(item?._id) === String(sourceLeadId))
+
+    if (sourceIndex === -1) {
+      nextLeads.unshift(duplicatedLead)
+      return nextLeads
+    }
+
+    nextLeads.splice(sourceIndex + 1, 0, duplicatedLead)
+    return nextLeads
+  }
 
   const handleCopyLead = async (lead) => {
     try {
       if (!lead) return
 
-      const createdDate = lead.createdAt || lead.createdDate
-      const createdFormatted = createdDate
-        ? new Date(createdDate).toLocaleString('en-GB', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        : '–'
-
-      const assigned = lead.assigned_to
-      const assignedName =
-        assigned && typeof assigned === 'object'
-          ? `${assigned.firstName || ''} ${assigned.lastName || ''}`.trim()
-          : assigned || 'Unassigned'
-
-      const contactSection = [
-        '=== Contact & Lead Info ===',
-        `Name: ${lead.name?.trim() || 'Unknown'}`,
-        `Phone: ${lead.phone || '–'}`,
-        `Email: ${lead.email || '–'}`,
-        `Destination: ${lead.destination || '–'}`,
-        `Travel Date: ${
-          lead.travel_date ? new Date(lead.travel_date).toLocaleDateString('en-GB') : '–'
-        }`,
-        `Budget: ${lead.budget || '–'}`,
-        `Source: ${lead.source || '–'}`,
-        `Assigned To: ${assignedName}`,
-        `Total Amount: ${
-          lead.total_amount != null ? `Rs.${Number(lead.total_amount).toLocaleString('en-IN')}/-` : '–'
-        }`,
-        `Advance Amount: ${
-          lead.advance_amount != null
-            ? `Rs.${Number(lead.advance_amount).toLocaleString('en-IN')}/-`
-            : '–'
-        }`,
-        `Remaining Amount: ${
-          lead.remaining_amount != null
-            ? `Rs.${Number(lead.remaining_amount).toLocaleString('en-IN')}/-`
-            : '–'
-        }`,
-        `Payment Status: ${lead.payment_status || '–'}`,
-        `Lead ID: ${lead.leadId || lead._id || '–'}`,
-        `Status: ${lead.status || '–'}`,
-        `Created At: ${createdFormatted}`,
-        `Notes: ${lead.notes || '–'}`
-      ]
-
-      const tourSummaryLines = []
-      tourSummaryLines.push('=== Tour Summary ===')
-      tourSummaryLines.push(
-        `01. Total Package Cost: ${
-          lead.total_amount != null
-            ? `Rs.${Number(lead.total_amount).toLocaleString('en-IN')}/-`
-            : '–'
-        }`
-      )
-      tourSummaryLines.push(
-        `02. Total No of Pax: ${
-          [lead.paxCount, lead.paxType].filter(Boolean).length
-            ? `${lead.paxCount ?? ''} ${lead.paxType ?? ''}`.trim()
-            : '–'
-        }`
-      )
-      tourSummaryLines.push(`03. Vehicle Type: ${lead.vehicleType || '–'}`)
-      tourSummaryLines.push(`04. Hotel Category: ${lead.hotelCategory || '–'}`)
-      tourSummaryLines.push(`05. Meal Plan: ${lead.mealPlan || '–'}`)
-      const duration =
-        [
-          lead.tourNights != null && `${lead.tourNights} Nights`,
-          lead.tourDays != null && `${lead.tourDays} Days`
-        ]
-          .filter(Boolean)
-          .join(' / ') || '–'
-      tourSummaryLines.push(`06. Tour Duration: ${duration}`)
-      const tourDate =
-        lead.tourStartDate && lead.tourEndDate
-          ? `${new Date(lead.tourStartDate).toLocaleDateString(
-              'en-GB'
-            )} to ${new Date(lead.tourEndDate).toLocaleDateString('en-GB')}`
-          : lead.travel_date
-          ? new Date(lead.travel_date).toLocaleDateString('en-GB')
-          : '–'
-      tourSummaryLines.push(`07. Tour Date: ${tourDate}`)
-      tourSummaryLines.push(`08. Pick up: ${lead.pickupPoint || '–'}`)
-      tourSummaryLines.push(`09. Drop: ${lead.dropPoint || '–'}`)
-      const destinationsText =
-        Array.isArray(lead.destinations) && lead.destinations.length > 0
-          ? lead.destinations.join(', ')
-          : lead.destination || '–'
-      tourSummaryLines.push(`10. Destinations: ${destinationsText}`)
-
-      const accommodationLines = []
-      if (Array.isArray(lead.accommodation) && lead.accommodation.length > 0) {
-        accommodationLines.push('=== Accommodation ===')
-        lead.accommodation.forEach((a, index) => {
-          accommodationLines.push(
-            `${index + 1}. Hotel: ${a.hotelName || '–'}, Nights: ${
-              a.nights != null ? a.nights : '–'
-            }, Room: ${a.roomType || '–'}, Sharing: ${a.sharing || '–'}, Destination: ${
-              a.destination || '–'
-            }`
-          )
-        })
+      const sourceLeadId = String(lead._id || '')
+      if (!sourceLeadId) {
+        toast.error('Could not duplicate lead')
+        return
       }
 
-      const hotelPayLines = []
-      if (
-        Array.isArray(lead.accommodation) &&
-        lead.accommodation.some(a => a.hotelTotalAmount != null || a.hotelPaidAmount != null)
-      ) {
-        hotelPayLines.push('=== Hotel / Pay ===')
-        const fmt = n =>
-          n != null ? `Rs.${Number(n).toLocaleString('en-IN')}/-` : '–'
-        lead.accommodation.forEach(a => {
-          const total = a.hotelTotalAmount != null ? Number(a.hotelTotalAmount) : null
-          const paid = a.hotelPaidAmount != null ? Number(a.hotelPaidAmount) : null
-          const remaining =
-            total != null && paid != null ? Math.max(0, total - paid) : total
-          if (total == null && paid == null) return
-          hotelPayLines.push(
-            `Hotel: ${a.hotelName || '–'}, Total: ${fmt(total)}, Paid: ${fmt(
-              paid
-            )}, Remaining: ${fmt(remaining)}`
-          )
-        })
+      setDuplicatingLeadId(sourceLeadId)
+      const response = await api.post(`/leads/${sourceLeadId}/duplicate`)
+      const duplicatedLead = response.data?.lead
+
+      if (!duplicatedLead) {
+        throw new Error('No duplicated lead returned')
       }
 
-      const flightLines = []
-      if (Array.isArray(lead.flights) && lead.flights.length > 0) {
-        flightLines.push('=== Flight Details ===')
-        lead.flights.forEach((f, index) => {
-          flightLines.push(
-            `${index + 1}. From: ${f.from || '–'}, To: ${f.to || '–'}, Airline: ${
-              f.airline || '–'
-            }, PNR/Booking: ${f.pnr || '–'}`
-          )
-        })
-      }
+      setLeads(prevLeads => insertLeadBelowSource(prevLeads, sourceLeadId, duplicatedLead))
+      setAllLeads(prevLeads => (
+        prevLeads.length > 0
+          ? insertLeadBelowSource(prevLeads, sourceLeadId, duplicatedLead)
+          : prevLeads
+      ))
+      setPagination(prev => {
+        const nextTotal = (prev.total || 0) + 1
+        return {
+          ...prev,
+          total: nextTotal,
+          pages: Math.max(1, Math.ceil(nextTotal / Math.max(prev.limit || 1, 1)))
+        }
+      })
 
-      const itineraryLines = []
-      if (Array.isArray(lead.itinerary) && lead.itinerary.length > 0) {
-        itineraryLines.push('=== Tour Itinerary ===')
-        lead.itinerary.forEach((item, index) => {
-          const dayNumber = item.day != null ? item.day : index + 1
-          const datePart = item.date
-            ? ` (${new Date(item.date).toLocaleDateString('en-GB')})`
-            : ''
-          itineraryLines.push(
-            `Day ${dayNumber}: ${item.route || 'Tour'}${datePart}`
-          )
-          if (item.description) {
-            itineraryLines.push(`  Description: ${item.description}`)
-          }
-          if (Array.isArray(item.places) && item.places.length > 0) {
-            itineraryLines.push(
-              `  Places can be visit: ${item.places.join(', ')}`
-            )
-          }
-        })
-      }
-
-      const policyLines = []
-      if (lead.payment_policy?.trim()) {
-        policyLines.push('=== Payment Policy ===')
-        policyLines.push(lead.payment_policy.trim())
-      }
-      if (lead.cancellation_policy?.trim()) {
-        policyLines.push('=== Cancellation Policy ===')
-        policyLines.push(lead.cancellation_policy.trim())
-      }
-
-      const inclusionLines = []
-      if (lead.inclusions?.trim()) {
-        inclusionLines.push('=== Package Inclusions ===')
-        inclusionLines.push(
-          lead.inclusions
-            .trim()
-            .split(/\r?\n/)
-            .filter(Boolean)
-            .map(line => line.replace(/^[\s•\-]+/, '').trim())
-            .join('\n')
-        )
-      }
-      if (lead.exclusions?.trim()) {
-        inclusionLines.push('=== Package Exclusions ===')
-        inclusionLines.push(
-          lead.exclusions
-            .trim()
-            .split(/\r?\n/)
-            .filter(Boolean)
-            .map(line => line.replace(/^[\s•\-]+/, '').trim())
-            .join('\n')
-        )
-      }
-
-      const leadText = [
-        ...contactSection,
-        '',
-        ...tourSummaryLines,
-        accommodationLines.length ? '\n' : '',
-        ...accommodationLines,
-        hotelPayLines.length ? '\n' : '',
-        ...hotelPayLines,
-        flightLines.length ? '\n' : '',
-        ...flightLines,
-        itineraryLines.length ? '\n' : '',
-        ...itineraryLines,
-        policyLines.length ? '\n' : '',
-        ...policyLines,
-        inclusionLines.length ? '\n' : '',
-        ...inclusionLines
-      ]
-        .filter(Boolean)
-        .join('\n')
-
-      await navigator.clipboard.writeText(leadText)
-      toast.success('Lead details copied to clipboard')
+      fetchDashboardMetrics()
+      fetchMissedFollowUps()
+      toast.success('Lead duplicated successfully')
     } catch (error) {
-      console.error('Failed to copy lead:', error)
-      toast.error('Could not copy lead details')
+      console.error('Failed to duplicate lead:', error)
+      toast.error(error.response?.data?.message || 'Could not duplicate lead')
+    } finally {
+      setDuplicatingLeadId(null)
     }
+  }
+
+  const handleOpenLeadPdfPreview = (lead) => {
+    const leadId = String(lead?._id || '')
+    if (!leadId) {
+      toast.error('Lead not found')
+      return
+    }
+
+    router.push(`/admin/tour-pdf?leadId=${encodeURIComponent(leadId)}&preview=1`)
   }
 
   // Separate effect for initial data fetch (runs once on auth)
@@ -2305,9 +2144,18 @@ export default function AdminLeadsPage() {
                                 <div className="flex items-center justify-center gap-2">
                                   <button
                                     type="button"
-                                    onClick={() => handleCopyLead(lead)}
+                                    onClick={() => handleOpenLeadPdfPreview(lead)}
                                     className="text-primary-600 hover:text-primary-900 transition-colors"
-                                    title="Copy lead details"
+                                    title="Open Tour PDF preview"
+                                  >
+                                    <FileText className="h-5 w-5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyLead(lead)}
+                                    disabled={duplicatingLeadId === leadId}
+                                    className="text-primary-600 hover:text-primary-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Duplicate lead"
                                   >
                                     <CopyIcon className="h-5 w-5" />
                                   </button>

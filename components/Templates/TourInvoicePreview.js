@@ -19,7 +19,7 @@ export default function TourInvoicePreview({ data }) {
           <div className="flex items-center gap-4">
             <div className="h-16 w-16 bg-white rounded-xl flex items-center justify-center shadow-md overflow-hidden">
               <img
-                src="/chalo-on-tour-e1766686260447.png"
+                src="/Chalo-on-tour.jpg.jpeg"
                 alt="Chalo On Tour"
                 className="h-full w-full object-contain p-1.5"
               />

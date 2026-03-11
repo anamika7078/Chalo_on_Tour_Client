@@ -5,7 +5,7 @@ import { api } from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { canEditPayment } from '../../lib/permissions';
-import { X, User, Mail, Phone, Globe, Tag, Loader2, MessageSquare, Building2, Plus, Trash2, Route, CheckCircle, XCircle, CreditCard, AlertCircle, Plane } from 'lucide-react';
+import { X, User, Mail, Phone, Globe, Tag, Loader2, MessageSquare, Building2, Plus, Trash2, Route, CheckCircle, XCircle, CreditCard, AlertCircle, Plane, ImagePlus, Users } from 'lucide-react';
 
 const STATUS_OPTIONS = [
   { value: 'new', label: 'New' },
@@ -31,12 +31,14 @@ const initialForm = {
   status: 'new',
   assigned_to: '',
   total_amount: '',
+  packageCostPerPerson: '',
   advance_amount: '',
   payment_status: 'unpaid',
   notes: '',
   followups: [],
   paxCount: '',
   paxType: '',
+  paxBreakup: [{ type: 'Adults', count: '' }],
   vehicleType: '',
   hotelCategory: '',
   mealPlan: '',
@@ -54,11 +56,62 @@ const initialForm = {
   exclusions: '',
   payment_policy: '',
   cancellation_policy: '',
+  termsAndConditions: '',
+  memorableTrip: '',
+  tripImages: [],
 };
 
 const emptyAccommodationRow = () => ({ hotelName: '', nights: '', roomType: 'Double', sharing: 'Double', destination: '', hotelTotalAmount: '', hotelPaidAmount: '' });
-const emptyFlightRow = () => ({ from: '', to: '', airline: '', pnr: '' });
-const emptyItineraryRow = () => ({ day: '', route: '', placesText: '' });
+const emptyFlightRow = () => ({ from: '', to: '', airline: '', pnr: '', fare: '' });
+const emptyItineraryRow = () => ({ day: '', route: '', description: '', placesText: '' });
+const emptyPaxRow = () => ({ type: 'Adults', count: '' });
+const getTodayDateString = () => new Date().toISOString().slice(0, 10);
+
+function mapPaxBreakupToForm(source) {
+  if (Array.isArray(source?.paxBreakup) && source.paxBreakup.length) {
+    return source.paxBreakup.map((item) => ({
+      type: item.type || '',
+      count: item.count != null ? String(item.count) : '',
+    }));
+  }
+  if (source?.paxType || source?.paxCount != null) {
+    return [{
+      type: source.paxType || 'Adults',
+      count: source.paxCount != null ? String(source.paxCount) : '',
+    }];
+  }
+  return [emptyPaxRow()];
+}
+
+function getPaxSummary(paxBreakup) {
+  const normalized = (paxBreakup || [])
+    .map((item) => ({
+      type: (item.type || '').trim(),
+      count: item.count !== '' && item.count != null ? Number(item.count) : null,
+    }))
+    .filter((item) => item.type || item.count != null);
+  const totalCount = normalized.reduce((sum, item) => sum + (Number.isFinite(item.count) ? item.count : 0), 0);
+  const paxType = normalized
+    .map((item) => [item.count != null ? item.count : null, item.type].filter(Boolean).join(' ').trim())
+    .filter(Boolean)
+    .join(', ');
+  return {
+    paxBreakup: normalized,
+    paxCount: totalCount > 0 ? totalCount : undefined,
+    paxType: paxType || undefined,
+  };
+}
+
+function readFilesAsDataUrls(files) {
+  return Promise.all(
+    files.map((file) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    }))
+  );
+}
 
 export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
   const { user } = useAuth();
@@ -68,6 +121,7 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
   const [fetching, setFetching] = useState(true);
   const [form, setForm] = useState(initialForm);
   const [staffUsers, setStaffUsers] = useState([]);
+  const todayDate = getTodayDateString();
 
   useEffect(() => {
     if (!open || !leadId) return;
@@ -94,12 +148,14 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
             to: f.to || '',
             airline: f.airline || '',
             pnr: f.pnr || '',
+            fare: f.fare != null ? String(f.fare) : '',
           }))
           : [];
         const itinerary = Array.isArray(lead.itinerary) && lead.itinerary.length
           ? lead.itinerary.map((item) => ({
             day: item.day != null ? String(item.day) : '',
             route: item.route || '',
+            description: item.description || '',
             placesText: Array.isArray(item.places) ? item.places.join('\n') : '',
           }))
           : [];
@@ -113,12 +169,14 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
           status: lead.status || 'new',
           assigned_to: a?._id ? a._id : (a || ''),
           total_amount: lead.total_amount != null ? String(lead.total_amount) : '',
+          packageCostPerPerson: lead.packageCostPerPerson != null ? String(lead.packageCostPerPerson) : '',
           advance_amount: lead.advance_amount != null ? String(lead.advance_amount) : '',
           payment_status: lead.payment_status || 'unpaid',
           notes: lead.notes || '',
           followups: Array.isArray(lead.followups) ? lead.followups : [],
           paxCount: lead.paxCount != null ? String(lead.paxCount) : '',
           paxType: lead.paxType || '',
+          paxBreakup: mapPaxBreakupToForm(lead),
           vehicleType: lead.vehicleType || '',
           hotelCategory: lead.hotelCategory || '',
           mealPlan: lead.mealPlan || '',
@@ -136,6 +194,9 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
           exclusions: lead.exclusions || '',
           payment_policy: lead.payment_policy || '',
           cancellation_policy: lead.cancellation_policy || '',
+          termsAndConditions: lead.termsAndConditions || '',
+          memorableTrip: lead.memorableTrip || '',
+          tripImages: Array.isArray(lead.tripImages) ? lead.tripImages.filter(Boolean) : [],
         });
       })
       .catch(() => toast.error('Failed to load lead'))
@@ -154,7 +215,7 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
   };
 
   const addFollowup = () => {
-    setForm((p) => ({ ...p, followups: [...(p.followups || []), { date: new Date().toISOString().slice(0, 10), note: '' }] }));
+    setForm((p) => ({ ...p, followups: [...(p.followups || []), { date: todayDate, note: '' }] }));
   };
 
   const updateFollowup = (index, field, value) => {
@@ -167,6 +228,11 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
 
   const removeFollowup = (index) => {
     setForm((p) => ({ ...p, followups: (p.followups || []).filter((_, i) => i !== index) }));
+  };
+
+  const getFollowupMinDate = (value) => {
+    const normalizedValue = value ? String(value).slice(0, 10) : '';
+    return normalizedValue && normalizedValue < todayDate ? normalizedValue : todayDate;
   };
 
   const addAccommodationRow = () => {
@@ -199,6 +265,38 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
     setForm((p) => ({ ...p, flights: (p.flights || []).filter((_, i) => i !== index) }));
   };
 
+  const addPaxRow = () => {
+    setForm((p) => ({ ...p, paxBreakup: [...(p.paxBreakup || []), emptyPaxRow()] }));
+  };
+  const updatePaxRow = (index, field, value) => {
+    setForm((p) => {
+      const next = [...(p.paxBreakup || [])];
+      if (!next[index]) next[index] = emptyPaxRow();
+      next[index] = { ...next[index], [field]: value };
+      return { ...p, paxBreakup: next };
+    });
+  };
+  const removePaxRow = (index) => {
+    setForm((p) => ({ ...p, paxBreakup: (p.paxBreakup || []).filter((_, i) => i !== index) }));
+  };
+
+  const handleTripImagesChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    try {
+      const nextImages = await readFilesAsDataUrls(files.slice(0, 6));
+      setForm((p) => ({ ...p, tripImages: [...(p.tripImages || []), ...nextImages].slice(0, 6) }));
+    } catch {
+      toast.error('Failed to load selected images.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const removeTripImage = (index) => {
+    setForm((p) => ({ ...p, tripImages: (p.tripImages || []).filter((_, i) => i !== index) }));
+  };
+
   const addItineraryDay = () => {
     setForm((p) => ({ ...p, itinerary: [...(p.itinerary || []), emptyItineraryRow()] }));
   };
@@ -219,6 +317,7 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
     setLoading(true);
     try {
       const destinations = form.destinationsText.trim() ? form.destinationsText.split(/[,;]/).map((d) => d.trim()).filter(Boolean) : [];
+      const paxSummary = getPaxSummary(form.paxBreakup);
       const accommodation = (form.accommodation || []).map((a) => ({
         hotelName: (a.hotelName || '').trim(),
         nights: a.nights !== '' && a.nights != null ? Number(a.nights) : null,
@@ -233,10 +332,12 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
         to: (f.to || '').trim(),
         airline: (f.airline || '').trim(),
         pnr: (f.pnr || '').trim(),
+        fare: f.fare !== '' && f.fare != null ? Number(f.fare) : null,
       }));
       const itinerary = (form.itinerary || []).map((item) => ({
         day: item.day !== '' && item.day != null ? Number(item.day) : null,
         route: (item.route || '').trim(),
+        description: (item.description || '').trim(),
         places: (item.placesText || '').split(/[\n,;]+/).map((p) => p.trim()).filter(Boolean),
       }));
       const payload = isStaff
@@ -251,12 +352,14 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
             status: form.status,
             assigned_to: form.assigned_to || null,
             total_amount: form.total_amount ? Number(form.total_amount) : 0,
+            packageCostPerPerson: form.packageCostPerPerson ? Number(form.packageCostPerPerson) : undefined,
             advance_amount: form.advance_amount ? Number(form.advance_amount) : 0,
             payment_status: form.payment_status,
             notes: form.notes.trim() || '',
             followups: form.followups,
-            paxCount: form.paxCount ? Number(form.paxCount) : undefined,
-            paxType: form.paxType?.trim() || undefined,
+            paxCount: paxSummary.paxCount,
+            paxType: paxSummary.paxType,
+            paxBreakup: paxSummary.paxBreakup.length ? paxSummary.paxBreakup : undefined,
             vehicleType: form.vehicleType?.trim() || undefined,
             hotelCategory: form.hotelCategory?.trim() || undefined,
             mealPlan: form.mealPlan?.trim() || undefined,
@@ -274,6 +377,9 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
             exclusions: form.exclusions?.trim() ?? '',
             payment_policy: form.payment_policy?.trim() ?? '',
             cancellation_policy: form.cancellation_policy?.trim() ?? '',
+            termsAndConditions: form.termsAndConditions?.trim() ?? '',
+            memorableTrip: form.memorableTrip?.trim() ?? '',
+            tripImages: form.tripImages ?? [],
           };
       await api.put(`/leads/${leadId}`, payload);
       toast.success('Lead updated.');
@@ -349,8 +455,34 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
                     </div>
                     <div className="p-4 space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-sm font-medium text-gray-700 mb-1">No. of Pax</label><input name="paxCount" type="number" min={0} value={form.paxCount} onChange={handleChange} placeholder="e.g. 3" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
-                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Pax Type</label><input name="paxType" value={form.paxType} onChange={handleChange} placeholder="e.g. Adults" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Package Cost (₹)</label><input name="total_amount" type="number" min={0} value={form.total_amount} onChange={handleChange} placeholder="e.g. 62500" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Package Cost Per Person (₹)</label><input name="packageCostPerPerson" type="number" min={0} value={form.packageCostPerPerson} onChange={handleChange} placeholder="e.g. 12500" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
+                      </div>
+                      <div className="rounded-lg border border-gray-200 p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-primary-600" />
+                            <label className="block text-sm font-medium text-gray-700">Pax Type And Count</label>
+                          </div>
+                          <button type="button" onClick={addPaxRow} className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800">
+                            <Plus className="h-4 w-4" /> Add pax type
+                          </button>
+                        </div>
+                        {(form.paxBreakup || []).map((row, i) => (
+                          <div key={i} className="grid grid-cols-[1fr_140px_auto] gap-3 items-end">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-0.5">Pax Type</label>
+                              <input value={row.type || ''} onChange={(e) => updatePaxRow(i, 'type', e.target.value)} placeholder="e.g. Adults / Children / Infants" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-0.5">No. of Pax</label>
+                              <input type="number" min={0} value={row.count ?? ''} onChange={(e) => updatePaxRow(i, 'count', e.target.value)} placeholder="e.g. 2" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+                            </div>
+                            <button type="button" onClick={() => removePaxRow(i)} className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1">
+                              <Trash2 className="h-3.5 w-3.5" /> Remove
+                            </button>
+                          </div>
+                        ))}
                       </div>
                       <div><label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label><input name="vehicleType" value={form.vehicleType} onChange={handleChange} placeholder="e.g. Sedan or Similar" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
                       <div><label className="block text-sm font-medium text-gray-700 mb-1">Hotel Category</label><input name="hotelCategory" value={form.hotelCategory} onChange={handleChange} placeholder="e.g. 3 Star" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
@@ -464,9 +596,36 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
                                 <label className="block text-xs font-medium text-gray-600 mb-0.5">PNR / Booking</label>
                                 <input value={row.pnr || ''} onChange={(e) => updateFlightRow(i, 'pnr', e.target.value)} placeholder="e.g. ABC123" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
                               </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Fare (Rs)</label>
+                                <input type="number" min={0} step={1} value={row.fare ?? ''} onChange={(e) => updateFlightRow(i, 'fare', e.target.value)} placeholder="e.g. 4500" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                              </div>
                             </div>
                           </div>
                         ))
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 bg-purple-50 border-b border-purple-100 flex items-center gap-2">
+                      <ImagePlus className="h-5 w-5 text-purple-600" />
+                      <h3 className="font-semibold text-gray-900">Trip Images</h3>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <input type="file" accept="image/*" multiple onChange={handleTripImagesChange} className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100" />
+                      <p className="text-xs text-gray-500">Upload up to 6 trip images. These will be shown in lead details and can be used in the tour PDF.</p>
+                      {(form.tripImages || []).length > 0 && (
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                          {(form.tripImages || []).map((image, i) => (
+                            <div key={i} className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={image} alt={`Trip ${i + 1}`} className="h-28 w-full object-cover" />
+                              <button type="button" onClick={() => removeTripImage(i)} className="w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -502,6 +661,10 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
                                   <label className="block text-xs font-medium text-gray-600 mb-0.5">Route</label>
                                   <input value={row.route || ''} onChange={(e) => updateItineraryRow(i, 'route', e.target.value)} placeholder="City A – City B (250KM)" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
                                 </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Description</label>
+                                <textarea value={row.description || ''} onChange={(e) => updateItineraryRow(i, 'description', e.target.value)} rows={3} placeholder="Short description for the day" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
                               </div>
                               <div>
                                 <label className="block text-xs font-medium text-gray-600 mb-0.5">Places to visit (one per line or comma separated)</label>
@@ -549,6 +712,24 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
                       <textarea name="cancellation_policy" value={form.cancellation_policy} onChange={handleChange} rows={4} placeholder="e.g. 35+ days: 25%, 14-10 days: 50%, etc." className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm" />
                     </div>
                   </div>
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-slate-600" />
+                      <h3 className="font-semibold text-gray-900">Terms And Conditions</h3>
+                    </div>
+                    <div className="p-4">
+                      <textarea name="termsAndConditions" value={form.termsAndConditions} onChange={handleChange} rows={4} placeholder="Add tour terms and conditions here." className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm" />
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 bg-rose-50 border-b border-rose-100 flex items-center gap-2">
+                      <Globe className="h-5 w-5 text-rose-600" />
+                      <h3 className="font-semibold text-gray-900">Memorable Trip</h3>
+                    </div>
+                    <div className="p-4">
+                      <textarea name="memorableTrip" value={form.memorableTrip} onChange={handleChange} rows={4} placeholder="Add a memorable closing note for the trip." className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm" />
+                    </div>
+                  </div>
                 </>
               )}
               <div className="rounded-xl border border-gray-200 overflow-hidden">
@@ -563,7 +744,7 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
                     <div className="flex items-center justify-between mb-2"><label className="block text-sm font-medium text-gray-700">Follow-ups</label><button type="button" onClick={addFollowup} className="text-sm text-primary-600 hover:text-primary-800">+ Add</button></div>
                     {(form.followups || []).map((fu, i) => (
                       <div key={i} className="flex gap-2 items-center mb-2">
-                        <input type="date" value={fu.date ? fu.date.slice(0, 10) : ''} onChange={(e) => updateFollowup(i, 'date', e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm" />
+                        <input type="date" min={getFollowupMinDate(fu.date)} value={fu.date ? fu.date.slice(0, 10) : ''} onChange={(e) => updateFollowup(i, 'date', e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm" />
                         <input type="text" value={fu.note || ''} onChange={(e) => updateFollowup(i, 'note', e.target.value)} placeholder="Note" className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm" />
                         <button type="button" onClick={() => removeFollowup(i)} className="text-red-600 hover:text-red-800 text-sm">Remove</button>
                       </div>

@@ -51,6 +51,8 @@
 }
 
 .logoBox {
+    display: flex;
+    justify-content: center;
     margin-bottom: 10px;
 }
 
@@ -70,6 +72,16 @@
 /* ===== IMAGES SECTION ===== */
 .imageSection {
     margin-bottom: 20px;
+}
+
+.singleImageWrap {
+    width: 100%;
+    height: 320px;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
 }
 
 .mainImageWrap {
@@ -217,35 +229,69 @@
     justify-content: center;
 }
 
+.optionalSection {
+    margin-top: 18px;
+}
+
+.optionalHeading {
+    color: #c62828;
+    font-weight: bold;
+    font-size: 12pt;
+    text-decoration: underline;
+    margin-bottom: 8px;
+}
+
+.optionalList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.optionalListItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 6px;
+    font-size: 10.5pt;
+    line-height: 1.4;
+}
+
+.memorableTripBox {
+    margin-top: 20px;
+    padding: 12px 14px;
+    border: 1px solid #1565c0;
+    background: #f4f8ff;
+}
+
+.memorableTripHeading {
+    color: #1565c0;
+    font-weight: bold;
+    font-size: 12pt;
+    margin-bottom: 6px;
+}
+
+.memorableTripText {
+    margin: 0;
+    font-size: 10.5pt;
+    line-height: 1.5;
+    color: #000;
+}
+
 /* ===== FOOTER / SIGNATURE ===== */
 .footer {
     margin-top: 30px;
+    text-align: left;
 }
 
 .footerNote {
-    text-align: center;
+    text-align: left;
     font-size: 9pt;
     margin-bottom: 20px;
     font-style: italic;
 }
 
-.signatureGrid {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-}
-
-.namasteBox {
-    text-align: center;
-}
-
-.namasteImg {
-    width: 50px;
-    height: 50px;
-}
-
 .companyInfoFooter {
-    text-align: right;
+    text-align: left;
 }
 
 .companyLink {
@@ -264,4 +310,15 @@
 .contactNumbers {
     color: #c62828;
     font-weight: bold;
+}
+
+.contactLine {
+    color: #c62828;
+    font-weight: bold;
+    margin-top: 4px;
+}
+
+.companyLinkInline {
+    color: #0d47a1;
+    text-decoration: underline;
 }
