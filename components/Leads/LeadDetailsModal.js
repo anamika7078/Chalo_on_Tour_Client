@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Edit, MapPin, Building2, Route, CheckCircle, XCircle, FileDown, CreditCard, AlertCircle, Plane, Banknote, ImagePlus } from 'lucide-react';
+import { X, Edit, MapPin, Building2, Route, CheckCircle, XCircle, FileDown, CreditCard, AlertCircle, Plane, Banknote, ImagePlus, Car } from 'lucide-react';
 import { api } from '../../lib/api';
 import toast from 'react-hot-toast';
 
@@ -22,8 +22,17 @@ function InfoRow({ label, value }) {
   );
 }
 
+function formatCurrency(value) {
+  return value != null ? `Rs.${Number(value).toLocaleString('en-IN')}/-` : '–';
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleDateString('en-GB') : '–';
+}
+
 export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit }) {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingWord, setDownloadingWord] = useState(false);
 
   const handleDownloadPdf = async () => {
     if (!lead?._id) return;
@@ -71,6 +80,52 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
     }
   };
 
+  const handleDownloadWord = async () => {
+    if (!lead?._id) return;
+    setDownloadingWord(true);
+    try {
+      const res = await api.get(`/leads/${lead._id}/tour-summary-word`, { responseType: 'blob' });
+      const data = res.data;
+      const contentType = res.headers?.['content-type'] || '';
+      const isWord = contentType.includes('application/msword');
+      const hasSize = data instanceof Blob && data.size > 100;
+      if (!isWord || !hasSize) {
+        const text = await (data instanceof Blob ? data.text() : Promise.resolve(String(data)));
+        let msg = 'Word download failed.';
+        try {
+          const j = JSON.parse(text);
+          msg = j.message || msg;
+        } catch (_) {}
+        toast.error(msg);
+        return;
+      }
+      const url = window.URL.createObjectURL(new Blob([data], { type: 'application/msword' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `tour-summary-${lead.leadId || lead._id}.doc`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Word file downloaded.');
+    } catch (err) {
+      const data = err.response?.data;
+      if (data instanceof Blob) {
+        try {
+          const text = await data.text();
+          const j = JSON.parse(text);
+          toast.error(j.message || 'Failed to download Word file.');
+        } catch (_) {
+          toast.error('Failed to download Word file.');
+        }
+      } else {
+        toast.error(err.response?.data?.message || 'Failed to download Word file.');
+      }
+    } finally {
+      setDownloadingWord(false);
+    }
+  };
+
   if (!open) return null;
 
   const name = lead?.name?.trim() || 'Unknown';
@@ -95,6 +150,10 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
             <button type="button" onClick={handleDownloadPdf} disabled={downloadingPdf} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-60" title="Download Tour Summary PDF">
               <FileDown className="h-4 w-4" />
               {downloadingPdf ? 'Downloading…' : 'PDF'}
+            </button>
+            <button type="button" onClick={handleDownloadWord} disabled={downloadingWord} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-60" title="Download Tour Summary Word File">
+              <FileDown className="h-4 w-4" />
+              {downloadingWord ? 'Downloading…' : 'Word'}
             </button>
             {canEdit && (
               <button type="button" onClick={() => onEdit?.(lead)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white text-sm font-medium transition-colors">
@@ -126,6 +185,8 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
               <InfoRow label="Total Amount" value={lead?.total_amount != null ? `Rs.${Number(lead.total_amount).toLocaleString('en-IN')}/-` : null} />
               <InfoRow label="Advance Amount" value={lead?.advance_amount != null ? `Rs.${Number(lead.advance_amount).toLocaleString('en-IN')}/-` : null} />
               <InfoRow label="Remaining Amount" value={lead?.remaining_amount != null ? `Rs.${Number(lead.remaining_amount).toLocaleString('en-IN')}/-` : null} />
+              <InfoRow label="Advance Due Date" value={lead?.advanceDueDate ? new Date(lead.advanceDueDate).toLocaleDateString('en-GB') : null} />
+              <InfoRow label="Payment Due Date" value={lead?.paymentDueDate ? new Date(lead.paymentDueDate).toLocaleDateString('en-GB') : null} />
               <InfoRow label="Payment Status" value={lead?.payment_status} />
               <InfoRow label="Lead ID" value={lead?.leadId || lead?._id} />
               <InfoRow label="Created At" value={created} />
@@ -151,17 +212,19 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
             </div>
             <div className="p-4 space-y-0">
               <InfoRow label="01. Total Package Cost" value={lead?.total_amount != null ? `Rs.${Number(lead.total_amount).toLocaleString('en-IN')}/-` : null} />
-              <InfoRow label="02. Package Cost Per Person" value={lead?.packageCostPerPerson != null ? `Rs.${Number(lead.packageCostPerPerson).toLocaleString('en-IN')}/-` : null} />
-              <InfoRow label="03. Total No. of Pax" value={lead?.paxCount != null ? String(lead.paxCount) : null} />
-              <InfoRow label="04. Pax Type Breakdown" value={paxBreakupSummary} />
-              <InfoRow label="05. Vehicle Type" value={lead?.vehicleType} />
-              <InfoRow label="06. Hotel Category" value={lead?.hotelCategory} />
-              <InfoRow label="07. Meal Plan" value={lead?.mealPlan} />
-              <InfoRow label="08. Tour Duration" value={[lead?.tourNights != null && `${lead.tourNights} Nights`, lead?.tourDays != null && `${lead.tourDays} Days`].filter(Boolean).join(' / ') || null} />
-              <InfoRow label="09. Tour Date" value={lead?.tourStartDate && lead?.tourEndDate ? `${new Date(lead.tourStartDate).toLocaleDateString('en-GB')} to ${new Date(lead.tourEndDate).toLocaleDateString('en-GB')}` : (lead?.travel_date ? new Date(lead.travel_date).toLocaleDateString('en-GB') : null)} />
-              <InfoRow label="10. Pick up" value={lead?.pickupPoint} />
-              <InfoRow label="11. Drop" value={lead?.dropPoint} />
-              <InfoRow label="12. Destinations" value={Array.isArray(lead?.destinations) && lead.destinations.length > 0 ? lead.destinations.join(', ') : lead?.destination} />
+              <InfoRow label="02. Adult Cost Per Person" value={lead?.packageCostPerPerson != null ? `Rs.${Number(lead.packageCostPerPerson).toLocaleString('en-IN')}/-` : null} />
+              <InfoRow label="03. Kids Cost Per Person" value={lead?.kidsPackageCostPerPerson != null ? `Rs.${Number(lead.kidsPackageCostPerPerson).toLocaleString('en-IN')}/-` : null} />
+              <InfoRow label="04. Kids Count" value={lead?.kidsCount != null ? String(lead.kidsCount) : null} />
+              <InfoRow label="05. Total No. of Pax" value={lead?.paxCount != null ? String(lead.paxCount) : null} />
+              <InfoRow label="06. Pax Type Breakdown" value={paxBreakupSummary} />
+              <InfoRow label="07. Vehicle Type" value={lead?.vehicleType} />
+              <InfoRow label="08. Hotel Category" value={lead?.hotelCategory} />
+              <InfoRow label="09. Meal Plan" value={lead?.mealPlan} />
+              <InfoRow label="10. Tour Duration" value={[lead?.tourNights != null && `${lead.tourNights} Nights`, lead?.tourDays != null && `${lead.tourDays} Days`].filter(Boolean).join(' / ') || null} />
+              <InfoRow label="11. Tour Date" value={lead?.tourStartDate && lead?.tourEndDate ? `${new Date(lead.tourStartDate).toLocaleDateString('en-GB')} to ${new Date(lead.tourEndDate).toLocaleDateString('en-GB')}` : (lead?.travel_date ? new Date(lead.travel_date).toLocaleDateString('en-GB') : null)} />
+              <InfoRow label="12. Pick up" value={lead?.pickupPoint} />
+              <InfoRow label="13. Drop" value={lead?.dropPoint} />
+              <InfoRow label="14. Destinations" value={Array.isArray(lead?.destinations) && lead.destinations.length > 0 ? lead.destinations.join(', ') : lead?.destination} />
             </div>
           </div>
           {Array.isArray(lead?.tripImages) && lead.tripImages.length > 0 && (
@@ -220,21 +283,20 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
             </div>
           </div>
 
-          {/* Hotel/Pay – hotel-wise payment (view only, not in PDF) */}
-          {Array.isArray(lead?.accommodation) && lead.accommodation.some((a) => a.hotelTotalAmount != null || a.hotelPaidAmount != null) && (
+          {Array.isArray(lead?.accommodation) && lead.accommodation.some((a) => a.hotelTotalAmount != null || a.hotelPaidAmount != null || a.hotelBalanceDueDate) && (
             <div className="rounded-xl border border-gray-200 overflow-hidden mt-4">
               <div className="px-4 py-3 bg-amber-600 flex items-center gap-2">
                 <Banknote className="h-5 w-5 text-white" />
-                <h3 className="font-semibold text-white">Hotel / Pay</h3>
+                <h3 className="font-semibold text-white">Hotel Payment Details</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="px-4 py-2 font-semibold text-gray-700">Hotel Name</th>
-                      <th className="px-4 py-2 font-semibold text-gray-700">Total (Rs)</th>
-                      <th className="px-4 py-2 font-semibold text-gray-700">Paid (Rs)</th>
-                      <th className="px-4 py-2 font-semibold text-gray-700">Remaining (Rs)</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700">Advance Payment Done (Rs)</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700">Balance Amount (Rs)</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700">Balance Due Date</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -242,14 +304,52 @@ export default function LeadDetailsModal({ open, lead, onClose, onEdit, canEdit 
                       const total = a.hotelTotalAmount != null ? Number(a.hotelTotalAmount) : null;
                       const paid = a.hotelPaidAmount != null ? Number(a.hotelPaidAmount) : null;
                       const remaining = total != null && paid != null ? Math.max(0, total - paid) : (total != null ? total : null);
-                      if (total == null && paid == null) return null;
-                      const fmt = (n) => n != null ? `Rs.${Number(n).toLocaleString('en-IN')}/-` : '–';
+                      if (total == null && paid == null && !a.hotelBalanceDueDate) return null;
                       return (
                         <tr key={i} className="hover:bg-gray-50/50">
                           <td className="px-4 py-2 text-gray-900">{a.hotelName || '–'}</td>
-                          <td className="px-4 py-2 text-gray-700">{fmt(total)}</td>
-                          <td className="px-4 py-2 text-gray-700">{fmt(paid)}</td>
-                          <td className="px-4 py-2 font-medium text-gray-900">{fmt(remaining)}</td>
+                          <td className="px-4 py-2 text-gray-700">{formatCurrency(paid)}</td>
+                          <td className="px-4 py-2 font-medium text-gray-900">{formatCurrency(remaining)}</td>
+                          <td className="px-4 py-2 text-gray-700">{formatDate(a.hotelBalanceDueDate)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {Array.isArray(lead?.vehicles) && lead.vehicles.some((v) => v.vehicleName || v.vehicleType || v.vehicleTotalAmount != null || v.vehicleAdvanceAmount != null || v.vehicleBalanceDueDate) && (
+            <div className="rounded-xl border border-gray-200 overflow-hidden mt-4">
+              <div className="px-4 py-3 bg-cyan-700 flex items-center gap-2">
+                <Car className="h-5 w-5 text-white" />
+                <h3 className="font-semibold text-white">Vehicle Payment Details</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-2 font-semibold text-gray-700">Vehicle Name</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700">Vehicle Type</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700">Advance (Rs)</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700">Balance (Rs)</th>
+                      <th className="px-4 py-2 font-semibold text-gray-700">Balance Due Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {lead.vehicles.map((v, i) => {
+                      const total = v.vehicleTotalAmount != null ? Number(v.vehicleTotalAmount) : null;
+                      const advance = v.vehicleAdvanceAmount != null ? Number(v.vehicleAdvanceAmount) : null;
+                      const remaining = total != null && advance != null ? Math.max(0, total - advance) : (total != null ? total : null);
+                      if (!v.vehicleName && !v.vehicleType && total == null && advance == null && !v.vehicleBalanceDueDate) return null;
+                      return (
+                        <tr key={i} className="hover:bg-gray-50/50">
+                          <td className="px-4 py-2 text-gray-900">{v.vehicleName || '–'}</td>
+                          <td className="px-4 py-2 text-gray-700">{v.vehicleType || '–'}</td>
+                          <td className="px-4 py-2 text-gray-700">{formatCurrency(advance)}</td>
+                          <td className="px-4 py-2 font-medium text-gray-900">{formatCurrency(remaining)}</td>
+                          <td className="px-4 py-2 text-gray-700">{formatDate(v.vehicleBalanceDueDate)}</td>
                         </tr>
                       );
                     })}

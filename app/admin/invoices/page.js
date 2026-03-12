@@ -68,6 +68,38 @@ const buildTourNameFromLead = (lead) => {
   return lead?.destination || '';
 };
 
+const getLeadKidsCount = (lead) => {
+  const directKidsCount = Number(lead?.kidsCount);
+  if (Number.isFinite(directKidsCount) && directKidsCount >= 0) return directKidsCount;
+
+  if (!Array.isArray(lead?.paxBreakup)) return 0;
+  return lead.paxBreakup.reduce((sum, item) => {
+    const type = String(item?.type || '').trim().toLowerCase();
+    const count = Number(item?.count);
+    if (!Number.isFinite(count) || count <= 0) return sum;
+    return /(kid|kids|child|children|infant)/i.test(type) ? sum + count : sum;
+  }, 0);
+};
+
+const getLeadAdultCount = (lead) => {
+  if (Array.isArray(lead?.paxBreakup) && lead.paxBreakup.length) {
+    const adultCount = lead.paxBreakup.reduce((sum, item) => {
+      const type = String(item?.type || '').trim().toLowerCase();
+      const count = Number(item?.count);
+      if (!Number.isFinite(count) || count <= 0) return sum;
+      return /(adult|adults)/i.test(type) ? sum + count : sum;
+    }, 0);
+    if (adultCount > 0) return adultCount;
+  }
+
+  const totalPax = Number(lead?.paxCount);
+  const kidsCount = getLeadKidsCount(lead);
+  if (Number.isFinite(totalPax) && totalPax >= 0) {
+    return Math.max(0, totalPax - kidsCount);
+  }
+  return 0;
+};
+
 const getNextReceiptNumber = (invoices = []) => {
   const maxNumber = invoices.reduce((max, invoice) => {
     const match = String(invoice?.receiptNumber || '').match(/(\d+)(?!.*\d)/);
@@ -97,6 +129,8 @@ const createEmptyForm = (invoices = []) => ({
   endDate: '',
   pricePerPerson: '',
   numberOfPersons: '',
+  kidsPricePerPerson: '',
+  kidsCount: '',
   touristNames: [''],
   advanceAmount: '',
   paymentMethod: 'UPI',
@@ -130,12 +164,14 @@ const mapInvoiceFromApi = (invoice) => ({
 
 const mergeLeadIntoForm = (lead, currentForm) => {
   const paxCount = Number(lead?.paxCount);
-  const safePaxCount = Number.isFinite(paxCount) && paxCount > 0 ? paxCount : 1;
+  const adultCount = getLeadAdultCount(lead);
+  const kidsCount = getLeadKidsCount(lead);
+  const billablePaxCount = adultCount > 0 ? adultCount : Number.isFinite(paxCount) && paxCount > 0 ? paxCount : 1;
   const perPersonCost =
     lead?.packageCostPerPerson != null
       ? String(lead.packageCostPerPerson)
       : lead?.total_amount != null
-      ? String(Math.round(Number(lead.total_amount) / safePaxCount))
+      ? String(Math.round(Number(lead.total_amount) / billablePaxCount))
       : currentForm.pricePerPerson;
 
   return {
@@ -151,7 +187,14 @@ const mergeLeadIntoForm = (lead, currentForm) => {
     endDate: formatInputDate(lead?.tourEndDate || lead?.travel_date) || currentForm.endDate,
     pricePerPerson: perPersonCost,
     numberOfPersons:
-      Number.isFinite(paxCount) && paxCount > 0 ? String(paxCount) : currentForm.numberOfPersons || '1',
+      adultCount > 0
+        ? String(adultCount)
+        : kidsCount > 0
+        ? currentForm.numberOfPersons || '0'
+        : currentForm.numberOfPersons || String(billablePaxCount),
+    kidsPricePerPerson:
+      lead?.kidsPackageCostPerPerson != null ? String(lead.kidsPackageCostPerPerson) : currentForm.kidsPricePerPerson,
+    kidsCount: kidsCount > 0 ? String(kidsCount) : currentForm.kidsCount,
     touristNames: normalizeList(lead?.name ? [lead.name] : currentForm.touristNames),
     advanceAmount:
       lead?.advance_amount != null ? String(lead.advance_amount) : currentForm.advanceAmount,
@@ -232,6 +275,24 @@ function ReceiptPdfDocument({ invoice }) {
   const totalAmount = Math.max(0, toNumber(invoice?.totalAmount));
   const taxAmount = 0;
   const totalCharges = totalAmount + taxAmount;
+  const billRows = [
+    {
+      description: invoice?.tourName || '--',
+      note: 'Adult tour package billing',
+      rate: toNumber(invoice?.pricePerPerson),
+      qty: toNumber(invoice?.numberOfPersons),
+      label: 'Adult',
+    },
+    ...(toNumber(invoice?.kidsCount) > 0 || toNumber(invoice?.kidsPricePerPerson) > 0
+      ? [{
+          description: invoice?.tourName || '--',
+          note: 'Kids tour package billing',
+          rate: toNumber(invoice?.kidsPricePerPerson),
+          qty: toNumber(invoice?.kidsCount),
+          label: 'Kids',
+        }]
+      : []),
+  ].filter((row) => row.qty > 0 || row.rate > 0);
   const receiptLogoSrc = '/Chalo-on-tour.jpg.jpeg?v=invoice-pdf';
   const summaryLabelCellStyle = {
     background: '#5f6f77',
@@ -307,19 +368,35 @@ function ReceiptPdfDocument({ invoice }) {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>
-                <div style={{ fontWeight: 700 }}>{invoice?.tourName || '--'}</div>
-                <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px' }}>Tour package billing</div>
-              </td>
-              <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>{invoice?.tourDuration || '--'}</td>
-              <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>
-                {formatDisplayDate(invoice?.startDate)} to {formatDisplayDate(invoice?.endDate)}
-              </td>
-              <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>{formatCurrency(invoice?.pricePerPerson)} / person</td>
-              <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>{invoice?.numberOfPersons || 0} Pax</td>
-              <td style={{ border: '1px solid #e5e7eb', padding: '10px', fontWeight: 700 }}>{formatCurrency(invoice?.totalAmount)}</td>
-            </tr>
+            {billRows.length ? billRows.map((row) => (
+              <tr key={`${row.label}-${row.rate}-${row.qty}`}>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>
+                  <div style={{ fontWeight: 700 }}>{row.description}</div>
+                  <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px' }}>{row.note}</div>
+                </td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>{invoice?.tourDuration || '--'}</td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>
+                  {formatDisplayDate(invoice?.startDate)} to {formatDisplayDate(invoice?.endDate)}
+                </td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>{formatCurrency(row.rate)} / person</td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>{row.qty} {row.label}</td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px', fontWeight: 700 }}>{formatCurrency(row.rate * row.qty)}</td>
+              </tr>
+            )) : (
+              <tr>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>
+                  <div style={{ fontWeight: 700 }}>{invoice?.tourName || '--'}</div>
+                  <div style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px' }}>Tour package billing</div>
+                </td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>{invoice?.tourDuration || '--'}</td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>
+                  {formatDisplayDate(invoice?.startDate)} to {formatDisplayDate(invoice?.endDate)}
+                </td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>{formatCurrency(invoice?.pricePerPerson)} / person</td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px' }}>{invoice?.numberOfPersons || 0} Pax</td>
+                <td style={{ border: '1px solid #e5e7eb', padding: '10px', fontWeight: 700 }}>{formatCurrency(invoice?.totalAmount)}</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </section>
@@ -445,9 +522,12 @@ export default function InvoicesPage() {
   const isViewMode = modalMode === 'view';
 
   const calculatedTotal = useMemo(() => {
-    if (formData.pricePerPerson === '' || formData.numberOfPersons === '') return 0;
-    return Math.max(0, toNumber(formData.pricePerPerson)) * Math.max(0, toNumber(formData.numberOfPersons));
-  }, [formData.pricePerPerson, formData.numberOfPersons]);
+    const adultTotal =
+      Math.max(0, toNumber(formData.pricePerPerson)) * Math.max(0, toNumber(formData.numberOfPersons));
+    const kidsTotal =
+      Math.max(0, toNumber(formData.kidsPricePerPerson)) * Math.max(0, toNumber(formData.kidsCount));
+    return adultTotal + kidsTotal;
+  }, [formData.pricePerPerson, formData.numberOfPersons, formData.kidsPricePerPerson, formData.kidsCount]);
 
   const balanceAmount = useMemo(
     () => Math.max(0, calculatedTotal - Math.max(0, toNumber(formData.advanceAmount))),
@@ -614,6 +694,8 @@ export default function InvoicesPage() {
       endDate: formData.endDate || '',
       pricePerPerson: Math.max(0, toNumber(formData.pricePerPerson)),
       numberOfPersons: Math.max(0, toNumber(formData.numberOfPersons)),
+      kidsPricePerPerson: Math.max(0, toNumber(formData.kidsPricePerPerson)),
+      kidsCount: Math.max(0, toNumber(formData.kidsCount)),
       totalAmount: calculatedTotal,
       touristNames: cleanedTourists,
       advanceAmount: Math.max(0, toNumber(formData.advanceAmount)),
@@ -1132,7 +1214,7 @@ export default function InvoicesPage() {
                           placeholder="05N / 06D"
                         />
                       </Field>
-                      <Field label="Number of Persons">
+                      <Field label="Adult Count">
                         <input
                           type="number"
                           name="numberOfPersons"
@@ -1165,7 +1247,7 @@ export default function InvoicesPage() {
                           className={inputClassName}
                         />
                       </Field>
-                      <Field label="Price Per Person">
+                      <Field label="Adult Price Per Person">
                         <input
                           type="number"
                           name="pricePerPerson"
@@ -1178,7 +1260,31 @@ export default function InvoicesPage() {
                           required
                         />
                       </Field>
-                      <Field label="Total Amount" helper="Auto-calculated from price per person x number of persons.">
+                      <Field label="Kids Count">
+                        <input
+                          type="number"
+                          name="kidsCount"
+                          value={formData.kidsCount}
+                          onChange={handleChange}
+                          disabled={isViewMode}
+                          className={inputClassName}
+                          placeholder="0"
+                          min="0"
+                        />
+                      </Field>
+                      <Field label="Kids Price Per Person">
+                        <input
+                          type="number"
+                          name="kidsPricePerPerson"
+                          value={formData.kidsPricePerPerson}
+                          onChange={handleChange}
+                          disabled={isViewMode}
+                          className={inputClassName}
+                          placeholder="0"
+                          min="0"
+                        />
+                      </Field>
+                      <Field label="Total Amount" helper="Auto-calculated from adult and kids pricing.">
                         <input
                           type="text"
                           value={calculatedTotal > 0 ? String(calculatedTotal) : ''}

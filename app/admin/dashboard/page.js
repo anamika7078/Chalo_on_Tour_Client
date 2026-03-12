@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import DashboardLayout from '../../../components/Layout/DashboardLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { getLeadsPath, getScopedPath } from '../../../lib/appPaths';
 import { Users, TrendingUp, Target, UserPlus, ArrowRight, Activity, BarChart3, Calendar, Bell, Clock } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
@@ -69,6 +70,9 @@ export default function SuperAdminDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const leadsPath = getLeadsPath(user);
+  const remindersPath = getScopedPath(user, '/calendar');
+  const addLeadPath = getScopedPath(user, '/leads/new');
 
   useEffect(() => {
     if (!user || authLoading) return;
@@ -145,14 +149,14 @@ export default function SuperAdminDashboard() {
             <h1 className="text-xl font-bold text-primary-900">My Dashboard</h1>
             <div className="flex items-center gap-2">
               <Link
-                href="/admin/calendar"
+                href={remindersPath}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors"
               >
                 <Calendar className="h-4 w-4" />
                 Reminders
               </Link>
               <Link
-                href="/admin/leads"
+                href={leadsPath}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm shadow-sm transition-colors"
               >
                 <Users className="h-4 w-4" />
@@ -173,28 +177,28 @@ export default function SuperAdminDashboard() {
               icon={Users}
               label="My Leads"
               value={totalLeads}
-              href="/admin/leads"
+              href={leadsPath}
               colorClass="bg-white border-gray-200"
             />
             <MetricCard
               icon={Activity}
               label="New"
               value={newLeads}
-              href="/admin/leads"
+              href={leadsPath}
               colorClass="bg-white border-gray-200"
             />
             <MetricCard
               icon={Target}
               label="Booked"
               value={bookedLeads}
-              href="/admin/leads"
+              href={leadsPath}
               colorClass="bg-white border-gray-200"
             />
             <MetricCard
               icon={TrendingUp}
               label="Payment Pending"
               value={paymentPendingLeads}
-              href="/admin/leads"
+              href={leadsPath}
               colorClass="bg-white border-gray-200"
             />
           </div>
@@ -204,20 +208,20 @@ export default function SuperAdminDashboard() {
               icon={Clock}
               label="Today's Follow-Ups"
               value={todaysFollowUps}
-              href="/admin/calendar"
+              href={remindersPath}
               colorClass="bg-white border-gray-200"
             />
             <MetricCard
               icon={Bell}
               label="Missed Follow-Ups"
               value={missedFollowUps}
-              href="/admin/leads?missed=1"
+              href={`${leadsPath}?missed=1`}
               colorClass="bg-white border-gray-200"
             />
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col">
-            <Link href="/admin/leads" className="flex flex-col min-h-0 bg-white rounded-xl border border-gray-100 shadow-card overflow-hidden hover:shadow-card-hover transition-shadow cursor-pointer">
+            <Link href={leadsPath} className="flex flex-col min-h-0 bg-white rounded-xl border border-gray-100 shadow-card overflow-hidden hover:shadow-card-hover transition-shadow cursor-pointer">
               <div className="flex-shrink-0 px-4 py-2.5 border-b border-gray-100 bg-gradient-to-r from-primary-50/50 to-accent-50/30 flex items-center gap-2">
                 <div className="h-8 w-8 rounded-lg bg-accent-100 flex items-center justify-center">
                   <Activity className="h-4 w-4 text-accent-600" />
@@ -247,14 +251,14 @@ export default function SuperAdminDashboard() {
           <h1 className="text-xl font-bold text-primary-900">Dashboard</h1>
           <div className="flex items-center gap-2">
             <Link
-              href="/admin/calendar"
+              href={remindersPath}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors"
             >
               <Calendar className="h-4 w-4" />
               Reminders
             </Link>
             <Link
-              href="/admin/leads"
+              href={leadsPath}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm shadow-sm transition-colors"
             >
               <Users className="h-4 w-4" />
@@ -262,7 +266,7 @@ export default function SuperAdminDashboard() {
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
             <Link
-              href="/admin/leads/new"
+              href={addLeadPath}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm transition-colors"
             >
               <UserPlus className="h-4 w-4" />
@@ -282,7 +286,7 @@ export default function SuperAdminDashboard() {
             icon={Users}
             label="Total Leads"
             value={totalLeads}
-            href="/admin/leads"
+            href={leadsPath}
             colorClass="bg-white border-gray-200"
           />
           <MetricCard
@@ -290,7 +294,7 @@ export default function SuperAdminDashboard() {
             label="Active Leads"
             value={activeLeads}
             subLabel="In pipeline"
-            href="/admin/leads"
+            href={leadsPath}
             colorClass="bg-white border-gray-200"
           />
           <MetricCard

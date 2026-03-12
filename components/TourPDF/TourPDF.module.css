@@ -8,29 +8,51 @@
     font-family: 'Times New Roman', Times, serif;
     font-size: 11pt;
     color: #000000;
-    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.12);
+    box-shadow: none;
 }
 
 .page {
     position: relative;
     width: 210mm;
     min-height: 297mm;
-    padding: 30px 50px;
+    padding: 10px 12px;
     box-sizing: border-box;
-    page-break-after: always;
+    /* page-break-after: always; */
+    break-after: page;
     background-color: #fff;
-    border: 1px solid #eee;
-    margin-bottom: 20px;
+    border: none;
+    margin-bottom: 0;
+    overflow: hidden;
 }
 
-/* Page border from image */
+.previewPage {
+    min-height: auto;
+    /* page-break-after: auto; */
+    break-after: auto;
+    overflow: visible;
+}
+
+.previewPage + .previewPage {
+    margin-top: 14px;
+}
+
+.page:last-child {
+    /* page-break-after: auto; */
+    break-after: auto;
+}
+
 .pageBody {
-    border: 2px solid #000;
-    padding: 20px;
+    border: none;
+    padding: 0;
     height: 100%;
-    min-height: calc(297mm - 100px);
+    min-height: calc(297mm - 20px);
     position: relative;
     z-index: 1;
+}
+
+.previewPageBody {
+    height: auto;
+    min-height: auto;
 }
 
 .watermark {
@@ -47,13 +69,13 @@
 /* ===== HEADER ===== */
 .header {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
 }
 
 .logoBox {
     display: flex;
     justify-content: center;
-    margin-bottom: 10px;
+    margin-bottom: 4px;
 }
 
 .logoImg {
@@ -66,12 +88,13 @@
     font-size: 22pt;
     font-weight: bold;
     font-style: italic;
-    margin-top: 10px;
+    margin-top: 4px;
+    margin-bottom: 0;
 }
 
 /* ===== IMAGES SECTION ===== */
 .imageSection {
-    margin-bottom: 20px;
+    margin-bottom: 14px;
 }
 
 .singleImageWrap {
@@ -80,7 +103,7 @@
     position: relative;
     border-radius: 8px;
     overflow: hidden;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     border: 1px solid #ddd;
 }
 
@@ -90,14 +113,14 @@
     position: relative;
     border-radius: 8px;
     overflow: hidden;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     border: 1px solid #ddd;
 }
 
 .subImagesGrid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 15px;
+    gap: 10px;
 }
 
 .subImageWrap {
@@ -112,19 +135,33 @@
 /* ===== SECTION HEADERS ===== */
 .sectionHeader {
     text-align: center;
-    margin: 30px 0 15px;
+    margin: 12px 0;
 }
 
 .headingBox {
-    display: inline-block;
-    padding: 8px 30px;
-    font-size: 16pt;
+    display: inline-flex;
+    min-width: 210px;
+    max-width: 100%;
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14pt;
     font-weight: bold;
     color: #ffffff;
     border-radius: 4px;
     box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
     text-transform: uppercase;
     letter-spacing: 1px;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.headingBoxText {
+    display: block;
+    transform: translateY(-1px);
 }
 
 .redBgHeader {
@@ -147,17 +184,20 @@
 /* ===== TABLES ===== */
 .table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
-    margin-bottom: 15px;
+    margin-bottom: 12px;
     border: 2px solid #000;
 }
 
 .table th,
 .table td {
     border: 1px solid #000;
-    padding: 6px 10px;
+    padding: 6px 8px;
     text-align: left;
-    font-size: 10pt;
+    font-size: 9.5pt;
+    vertical-align: top;
+    word-break: break-word;
 }
 
 .table th {
@@ -166,18 +206,89 @@
 }
 
 .summaryTable td:first-child {
-    width: 40px;
+    width: 8%;
     text-align: center;
+}
+
+.summaryTable td:nth-child(2) {
+    width: 34%;
+    font-weight: bold;
+}
+
+.summaryTable td:nth-child(3) {
+    width: 58%;
+}
+
+.accommodationTable th:nth-child(1),
+.accommodationTable td:nth-child(1) {
+    width: 9%;
+    text-align: center;
+}
+
+.accommodationTable th:nth-child(2),
+.accommodationTable td:nth-child(2) {
+    width: 24%;
+}
+
+.accommodationTable th:nth-child(3),
+.accommodationTable td:nth-child(3) {
+    width: 16%;
+}
+
+.accommodationTable th:nth-child(4),
+.accommodationTable td:nth-child(4) {
+    width: 19%;
+}
+
+.accommodationTable th:nth-child(5),
+.accommodationTable td:nth-child(5) {
+    width: 17%;
+}
+
+.accommodationTable th:nth-child(6),
+.accommodationTable td:nth-child(6) {
+    width: 15%;
+}
+
+.flightTable th:nth-child(1),
+.flightTable td:nth-child(1) {
+    width: 9%;
+    text-align: center;
+}
+
+.flightTable th:nth-child(2),
+.flightTable td:nth-child(2) {
+    width: 28%;
+}
+
+.flightTable th:nth-child(3),
+.flightTable td:nth-child(3) {
+    width: 28%;
+}
+
+.flightTable th:nth-child(4),
+.flightTable td:nth-child(4) {
+    width: 20%;
+}
+
+.flightTable th:nth-child(5),
+.flightTable td:nth-child(5) {
+    width: 15%;
 }
 
 /* ===== ITINERARY ===== */
 .dayLabel {
-    display: inline-block;
+    display: inline-flex;
     background-color: #ffeb3b;
     font-weight: bold;
-    padding: 2px 8px;
-    border: 1px solid #000;
+    height: 34px;
+    padding: 0 10px;
     margin-bottom: 5px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1;
+    vertical-align: middle;
 }
 
 .itineraryTitle {
@@ -187,7 +298,7 @@
 }
 
 .itineraryContent {
-    margin-bottom: 15px;
+    margin-bottom: 12px;
     line-height: 1.5;
 }
 
@@ -230,7 +341,7 @@
 }
 
 .optionalSection {
-    margin-top: 18px;
+    margin-top: 12px;
 }
 
 .optionalHeading {
@@ -257,7 +368,7 @@
 }
 
 .memorableTripBox {
-    margin-top: 20px;
+    margin-top: 12px;
     padding: 12px 14px;
     border: 1px solid #1565c0;
     background: #f4f8ff;
@@ -279,7 +390,7 @@
 
 /* ===== FOOTER / SIGNATURE ===== */
 .footer {
-    margin-top: 30px;
+    margin-top: 16px;
     text-align: left;
 }
 

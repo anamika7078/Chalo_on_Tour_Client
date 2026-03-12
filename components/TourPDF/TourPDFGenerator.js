@@ -19,7 +19,7 @@ const getListItems = (value) =>
         .map((item) => item.replace(/^[\s•\-]+/, '').trim())
         .filter(Boolean);
 
-const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
+const TourPDFDocument = forwardRef(function TourPDFDocument({ data, compactPreview = false }, ref) {
     const {
         // Summary
         perPersonCost,
@@ -48,6 +48,9 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
         flightNote,
         inclusions,
         exclusions,
+        paymentPolicy,
+        cancellationPolicy,
+        termsAndConditions,
         memorableTrip,
         // Footer / contact
         ceoName,
@@ -59,15 +62,50 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
 
     const inclusionItems = getListItems(inclusions);
     const exclusionItems = getListItems(exclusions);
+    const paymentPolicyItems = getListItems(paymentPolicy);
+    const cancellationPolicyItems = getListItems(cancellationPolicy);
+    const termsItems = getListItems(termsAndConditions);
     const uploadedImages = [heroMain, heroSub1, heroSub2].filter(Boolean);
+    const itineraryStart = Array.isArray(itinerary) ? itinerary.slice(0, 3) : [];
+    const itineraryRemaining = Array.isArray(itinerary) ? itinerary.slice(3) : [];
+    const hasExtraSections = (
+        itineraryRemaining.length > 0
+        || inclusionItems.length > 0
+        || exclusionItems.length > 0
+        || paymentPolicyItems.length > 0
+        || cancellationPolicyItems.length > 0
+        || termsItems.length > 0
+        || Boolean(memorableTrip)
+    );
     const tripTitle = destinations?.trim()
         ? `Let's Explore ${destinations}`
         : "Let's Explore Your Trip";
 
+    const footerContent = (
+        <div className={styles.footer}>
+            <p className={`${styles.textBlue} ${styles.bold}`}>
+                Thank You
+            </p>
+            <p className={styles.footerNote}>
+                Let's stay connected via email, phone, WhatsApp, Facebook, Instagram, and more. We look forward to seeing you again on another memorable Chalo On Tour Trip.
+            </p>
+            <div style={{ height: '32px' }}></div>
+
+            <div className={styles.companyInfoFooter}>
+                <div className={styles.regards}>Thanks & Regards</div>
+                <div className={styles.companyLink}>CHALO ON TOUR</div>
+                <div className={styles.ceoName}>{ceoName || 'Mr. Utkarsh Kale (C.E.O.)'}</div>
+                <div className={styles.contactNumbers}>Cell: - {cell1} / {cell2}</div>
+                <div className={styles.contactLine}>Mail ID: - <span className={styles.companyLinkInline}>{companyEmail || 'bookings@chaloontour.com'}</span></div>
+                <div className={styles.contactLine}>Website: - <span className={styles.companyLinkInline}>{companyWebsite || 'www.chaloontour.com'}</span></div>
+            </div>
+        </div>
+    );
+
     return (
         <div className={`${styles.pdfRoot} pdf-root-print`} ref={ref} id="pdf-document">
             {/* ── PAGE 1: COVER & SUMMARY ── */}
-            <section className={styles.page}>
+            <section className={`${styles.page} ${compactPreview ? styles.previewPage : ''}`}>
                 <div className={styles.watermark}>
                     <Image
                         src="/Chalo-on-tour.jpg.jpeg"
@@ -77,7 +115,7 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
                         unoptimized
                     />
                 </div>
-                <div className={styles.pageBody}>
+                <div className={`${styles.pageBody} ${compactPreview ? styles.previewPageBody : ''}`}>
                     <div className={styles.header}>
                         <div className={styles.logoBox}>
                             <Image
@@ -122,7 +160,9 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
                     )}
 
                     <div className={styles.sectionHeader}>
-                        <div className={`${styles.headingBox} ${styles.blueBgHeader}`}>Tour Summary: -</div>
+                        <div className={`${styles.headingBox} ${styles.blueBgHeader}`}>
+                            <span className={styles.headingBoxText}>Tour Summary: -</span>
+                        </div>
                     </div>
 
                     <table className={`${styles.table} ${styles.summaryTable}`}>
@@ -143,7 +183,7 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
             </section>
 
             {/* ── PAGE 2: ACCOMMODATION, FLIGHTS & ITINERARY START ── */}
-            <section className={styles.page}>
+            <section className={`${styles.page} ${compactPreview ? styles.previewPage : ''}`}>
                 <div className={styles.watermark}>
                     <Image
                         src="/Chalo-on-tour.jpg.jpeg"
@@ -153,12 +193,14 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
                         unoptimized
                     />
                 </div>
-                <div className={styles.pageBody}>
+                <div className={`${styles.pageBody} ${compactPreview ? styles.previewPageBody : ''}`}>
                     <div className={styles.sectionHeader}>
-                        <div className={`${styles.headingBox} ${styles.blueBgHeader}`}>Accommodation: -</div>
+                        <div className={`${styles.headingBox} ${styles.blueBgHeader}`}>
+                            <span className={styles.headingBoxText}>Accommodation: -</span>
+                        </div>
                     </div>
 
-                    <table className={styles.table}>
+                    <table className={`${styles.table} ${styles.accommodationTable}`}>
                         <thead>
                             <tr>
                                 <th>Sr.No</th>
@@ -196,10 +238,12 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
                     )}
 
                     <div className={styles.sectionHeader}>
-                        <div className={`${styles.headingBox} ${styles.blueBgHeader}`}>Flight Details: -</div>
+                        <div className={`${styles.headingBox} ${styles.blueBgHeader}`}>
+                            <span className={styles.headingBoxText}>Flight Details: -</span>
+                        </div>
                     </div>
 
-                    <table className={styles.table}>
+                    <table className={`${styles.table} ${styles.flightTable}`}>
                         <thead>
                             <tr>
                                 <th>Sr.No</th>
@@ -235,10 +279,12 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
                     )}
 
                     <div className={styles.sectionHeader} style={{ textAlign: 'left' }}>
-                        <div className={`${styles.headingBox} ${styles.redBgHeader}`}>Tour Itinerary: -</div>
+                        <div className={`${styles.headingBox} ${styles.redBgHeader}`}>
+                            <span className={styles.headingBoxText}>Tour Itinerary: -</span>
+                        </div>
                     </div>
 
-                    {itinerary && itinerary.slice(0, 3).map((day, di) => (
+                    {itineraryStart.map((day, di) => (
                         <div key={di} className={styles.itineraryContent}>
                             <div className={styles.dayLabel}>
                                 {day.dayLabel || `Day ${di + 1}`} :– {day.title} ({day.date})
@@ -259,102 +305,134 @@ const TourPDFDocument = forwardRef(function TourPDFDocument({ data }, ref) {
                             )}
                         </div>
                     ))}
+
+                    {!hasExtraSections && footerContent}
                 </div>
             </section>
 
-            {/* ── PAGE 3: ITINERARY CONTINUED & FOOTER ── */}
-            <section className={styles.page}>
-                <div className={styles.watermark}>
-                    <Image
-                        src="/Chalo-on-tour.jpg.jpeg"
-                        alt="Watermark"
-                        width={400}
-                        height={160}
-                        unoptimized
-                    />
-                </div>
-                <div className={styles.pageBody}>
-                    {itinerary && itinerary.slice(3).map((day, di) => (
-                        <div key={di + 3} className={styles.itineraryContent}>
-                            <div className={styles.dayLabel}>
-                                {day.dayLabel || `Day ${di + 4}`} :– {day.title} ({day.date})
-                            </div>
-                            <p className={styles.itineraryDesc}>{day.description}</p>
-                            {day.places && day.places.length > 0 && (
-                                <div>
-                                    <div className={styles.placesTitle}>Places to Visit: -</div>
-                                    <ul className={styles.placesList}>
-                                        {day.places.map((place, pi) => (
-                                            <li key={pi} className={styles.placeItem}>
-                                                <FingerPointIcon />
-                                                {place}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-
-                    {(inclusionItems.length > 0 || exclusionItems.length > 0) && (
-                        <>
-                            {inclusionItems.length > 0 && (
-                                <div className={styles.optionalSection}>
-                                    <div className={styles.optionalHeading}>Package Inclusions</div>
-                                    <ul className={styles.optionalList}>
-                                        {inclusionItems.map((item, index) => (
-                                            <li key={`inc-${index}`} className={styles.optionalListItem}>
-                                                <FingerPointIcon />
-                                                <span>{item}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {exclusionItems.length > 0 && (
-                                <div className={styles.optionalSection}>
-                                    <div className={styles.optionalHeading}>Package Exclusions</div>
-                                    <ul className={styles.optionalList}>
-                                        {exclusionItems.map((item, index) => (
-                                            <li key={`exc-${index}`} className={styles.optionalListItem}>
-                                                <FingerPointIcon />
-                                                <span>{item}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {memorableTrip && (
-                        <div className={styles.memorableTripBox}>
-                            <div className={styles.memorableTripHeading}>Tip For Memorable Trip</div>
-                            <p className={styles.memorableTripText}>{memorableTrip}</p>
-                        </div>
-                    )}
-
-                    <div className={styles.footer}>
-                        <p className={`${styles.textBlue} ${styles.bold}`}>
-                            Thank You
-                        </p>
-                        <p className={styles.footerNote}>
-                            Let's stay connected via email, phone, WhatsApp, Facebook, Instagram, and more. We look forward to seeing you again on another memorable Chalo On Tour Trip.
-                        </p>
-                        <div style={{ height: '32px' }}></div>
-
-                        <div className={styles.companyInfoFooter}>
-                            <div className={styles.regards}>Thanks & Regards</div>
-                            <div className={styles.companyLink}>CHALO ON TOUR</div>
-                            <div className={styles.ceoName}>{ceoName || 'Mr. Utkarsh Kale (C.E.O.)'}</div>
-                            <div className={styles.contactNumbers}>Cell: - {cell1} / {cell2}</div>
-                            <div className={styles.contactLine}>Mail ID: - <span className={styles.companyLinkInline}>{companyEmail || 'bookings@chaloontour.com'}</span></div>
-                            <div className={styles.contactLine}>Website: - <span className={styles.companyLinkInline}>{companyWebsite || 'www.chaloontour.com'}</span></div>
-                        </div>
+            {hasExtraSections && (
+                <section className={`${styles.page} ${compactPreview ? styles.previewPage : ''}`}>
+                    <div className={styles.watermark}>
+                        <Image
+                            src="/Chalo-on-tour.jpg.jpeg"
+                            alt="Watermark"
+                            width={400}
+                            height={160}
+                            unoptimized
+                        />
                     </div>
-                </div>
-            </section>
+                    <div className={`${styles.pageBody} ${compactPreview ? styles.previewPageBody : ''}`}>
+                        {itineraryRemaining.map((day, di) => (
+                            <div key={di + 3} className={styles.itineraryContent}>
+                                <div className={styles.dayLabel}>
+                                    {day.dayLabel || `Day ${di + 4}`} :– {day.title} ({day.date})
+                                </div>
+                                <p className={styles.itineraryDesc}>{day.description}</p>
+                                {day.places && day.places.length > 0 && (
+                                    <div>
+                                        <div className={styles.placesTitle}>Places to Visit: -</div>
+                                        <ul className={styles.placesList}>
+                                            {day.places.map((place, pi) => (
+                                                <li key={pi} className={styles.placeItem}>
+                                                    <FingerPointIcon />
+                                                    {place}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+
+                        {(inclusionItems.length > 0 || exclusionItems.length > 0) && (
+                            <>
+                                {inclusionItems.length > 0 && (
+                                    <div className={styles.optionalSection}>
+                                        <div className={styles.optionalHeading}>Package Inclusions</div>
+                                        <ul className={styles.optionalList}>
+                                            {inclusionItems.map((item, index) => (
+                                                <li key={`inc-${index}`} className={styles.optionalListItem}>
+                                                    <FingerPointIcon />
+                                                    <span>{item}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {exclusionItems.length > 0 && (
+                                    <div className={styles.optionalSection}>
+                                        <div className={styles.optionalHeading}>Package Exclusions</div>
+                                        <ul className={styles.optionalList}>
+                                            {exclusionItems.map((item, index) => (
+                                                <li key={`exc-${index}`} className={styles.optionalListItem}>
+                                                    <FingerPointIcon />
+                                                    <span>{item}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {(paymentPolicyItems.length > 0 || cancellationPolicyItems.length > 0 || termsItems.length > 0) && (
+                            <>
+                                {paymentPolicyItems.length > 0 && (
+                                    <div className={styles.optionalSection}>
+                                        <div className={styles.optionalHeading}>Payment Policy</div>
+                                        <ul className={styles.optionalList}>
+                                            {paymentPolicyItems.map((item, index) => (
+                                                <li key={`pay-${index}`} className={styles.optionalListItem}>
+                                                    <FingerPointIcon />
+                                                    <span>{item}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {cancellationPolicyItems.length > 0 && (
+                                    <div className={styles.optionalSection}>
+                                        <div className={styles.optionalHeading}>Cancellation Policy</div>
+                                        <ul className={styles.optionalList}>
+                                            {cancellationPolicyItems.map((item, index) => (
+                                                <li key={`cancel-${index}`} className={styles.optionalListItem}>
+                                                    <FingerPointIcon />
+                                                    <span>{item}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {termsItems.length > 0 && (
+                                    <div className={styles.optionalSection}>
+                                        <div className={styles.optionalHeading}>Terms And Conditions</div>
+                                        <ul className={styles.optionalList}>
+                                            {termsItems.map((item, index) => (
+                                                <li key={`terms-${index}`} className={styles.optionalListItem}>
+                                                    <FingerPointIcon />
+                                                    <span>{item}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {memorableTrip && (
+                            <div className={styles.memorableTripBox}>
+                                <div className={styles.memorableTripHeading}>Tip For Memorable Trip</div>
+                                <p className={styles.memorableTripText}>{memorableTrip}</p>
+                            </div>
+                        )}
+
+                        {footerContent}
+                    </div>
+                </section>
+            )}
         </div>
     );
 });

@@ -3,26 +3,31 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
-import { LayoutDashboard, Users, UserCircle, UserCog, LogOut, X, Calendar, MapPin, Package, FileText, FileSpreadsheet, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, UserCircle, UserCog, LogOut, X, Calendar, MapPin, FileSpreadsheet, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getAppBasePath } from '../../lib/appPaths';
 
-const items = [
-  { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-  { name: 'Leads', href: '/admin/leads', icon: Users },
-  { name: 'Reminders', href: '/admin/calendar', icon: Calendar },
-  { name: 'Trip plans', href: '/admin/trips', icon: MapPin },
-  { name: 'Package Templates', href: '/admin/templates', icon: Package },
- 
-  // { name: 'Tour PDF', href: '/admin/tour-pdf', icon: FileText, superadminOnly: true },
-  { name: 'Invoices', href: '/admin/invoices', icon: FileSpreadsheet },
-  { name: 'Users', href: '/admin/users', icon: UserCog, superadminOnly: true },
-  { name: 'Profile', href: '/admin/profile', icon: UserCircle },
-];
-
-/** Superadmin sees all; staff sees same nav but backend filters data by assigned leads. */
 function getPanelLabel(role) {
   if (role === 'superadmin') return 'Super Admin';
-  if (role === 'staff') return 'Staff';
+  if (role === 'staff') return 'Portal User';
   return 'Admin';
+}
+
+function getNavItems(role) {
+  const basePath = getAppBasePath(role);
+  const items = [
+    { name: 'Dashboard', href: `${basePath}/dashboard`, icon: LayoutDashboard },
+    { name: 'Leads', href: `${basePath}/leads`, icon: Users },
+    { name: 'Reminders', href: `${basePath}/calendar`, icon: Calendar },
+    { name: 'Trip plans', href: `${basePath}/trips`, icon: MapPin },
+    { name: 'Invoices', href: `${basePath}/invoices`, icon: FileSpreadsheet },
+    { name: 'Profile', href: `${basePath}/profile`, icon: UserCircle },
+  ];
+
+  if (role === 'superadmin') {
+    items.push({ name: 'Users', href: `${basePath}/users`, icon: UserCog, superadminOnly: true });
+  }
+
+  return items;
 }
 
 export default function Sidebar(props) {
@@ -33,9 +38,9 @@ export default function Sidebar(props) {
   const isCollapsed = props.isCollapsed ?? false;
   const onToggleCollapse = props.onToggleCollapse ?? (() => {});
   const panelLabel = getPanelLabel(user?.role);
+  const navItems = getNavItems(user?.role);
 
   const dashboardLabel = user?.role === 'staff' ? 'My Dashboard' : 'Dashboard';
-  const navItems = items.filter((item) => !item.superadminOnly || user?.role === 'superadmin');
   const renderNavContent = (collapsed) => {
     const linkCls = (active) =>
       (active ? 'bg-red-500 text-white font-medium shadow-sm ' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 ') +
@@ -45,7 +50,7 @@ export default function Sidebar(props) {
       <nav className="mt-5 space-y-0.5 px-2">
         {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/');
-          const label = item.href === '/admin/dashboard' ? dashboardLabel : item.name;
+          const label = item.href.endsWith('/dashboard') ? dashboardLabel : item.name;
           return (
             <Link
               key={item.name}

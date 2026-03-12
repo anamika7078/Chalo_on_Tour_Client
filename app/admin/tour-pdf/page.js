@@ -48,6 +48,9 @@ const defaultData = () => ({
     flightNote: 'Flight rates and seats may change at the time of final booking.',
     inclusions: '',
     exclusions: '',
+    paymentPolicy: '',
+    cancellationPolicy: '',
+    termsAndConditions: '',
     memorableTrip: '',
     // itinerary
     itinerary: [
@@ -190,6 +193,9 @@ const mapLeadToTourPdfData = (lead) => {
         flightNote: '',
         inclusions: lead?.inclusions || '',
         exclusions: lead?.exclusions || '',
+        paymentPolicy: lead?.payment_policy || '',
+        cancellationPolicy: lead?.cancellation_policy || '',
+        termsAndConditions: lead?.termsAndConditions || '',
         memorableTrip: lead?.memorableTrip || '',
         itinerary: Array.isArray(lead?.itinerary)
             ? lead.itinerary.map((day, index) => ({
@@ -394,6 +400,30 @@ export default function TourPDFPage() {
         }, 1000);
     };
 
+    const collectDocumentStyles = useCallback(() => {
+        let styles = `
+            <style>
+                @page { size: A4; margin: 0; }
+                html, body { background: #fff; }
+            </style>
+        `;
+
+        Array.from(document.styleSheets).forEach((sheet) => {
+            try {
+                const rules = Array.from(sheet.cssRules || [])
+                    .map((rule) => rule.cssText)
+                    .join('\n');
+                if (rules.trim()) {
+                    styles += `<style>${rules}</style>`;
+                }
+            } catch (_) {
+                // Ignore stylesheets that the browser does not allow us to read.
+            }
+        });
+
+        return styles;
+    }, []);
+
     const handleDirectPrint = () => {
         // Use the hidden print root so we get full-size content (no preview scale); fallback to visible pdf-document
         const printRoot = document.getElementById('pdf-print-root');
@@ -402,14 +432,9 @@ export default function TourPDFPage() {
             toast.error('PDF content not ready. Try again in a moment.');
             return;
         }
-        // Collect all stylesheets so the print window looks exactly like the preview
-        const origin = window.location.origin;
-        const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-            .map((l) => l.href)
-            .filter((href) => href && (href.startsWith(origin) || href.startsWith('http')))
-            .map((href) => `<link rel="stylesheet" href="${href}" />`)
-            .join('\n');
+        const styles = collectDocumentStyles();
         // Make image src absolute so they load in the new window
+        const origin = window.location.origin;
         let html = pdfEl.outerHTML;
         if (origin && html.includes(' src="/')) html = html.replace(/\ssrc="\//g, ` src="${origin}/`);
         const win = window.open('', '_blank', 'width=900,height=1200');
@@ -425,7 +450,7 @@ export default function TourPDFPage() {
             @page { size: A4; margin: 0; }
             @media print { body { background: white; } }
           </style>
-          ${styleLinks}
+          ${styles}
         </head>
         <body>
           ${html}
@@ -447,32 +472,68 @@ export default function TourPDFPage() {
             toast.error('PDF content not ready. Try again in a moment.');
             return;
         }
+        let wrapper;
         try {
-            const html2pdf = (await import('html2pdf.js')).default;
+            const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+                import('html2canvas'),
+                import('jspdf'),
+            ]);
             const origin = window.location.origin;
             const clone = pdfEl.cloneNode(true);
             clone.querySelectorAll('img').forEach((img) => {
                 if (img.src && img.src.startsWith('/')) img.src = origin + img.src;
             });
-            const wrapper = document.createElement('div');
-            wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;background:#fff;';
+            const pageSections = Array.from(clone.children).filter((node) => node.nodeType === Node.ELEMENT_NODE);
+            pageSections.forEach((section) => {
+                section.style.marginBottom = '0';
+            });
+            wrapper = document.createElement('div');
+            wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;margin:0;padding:0;background:#fff;';
             wrapper.appendChild(clone);
             document.body.appendChild(wrapper);
-            const opt = {
-                margin: 8,
-                filename: `Tour-Quotation-Chalo-On-Tour-${Date.now()}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: 'css' },
-            };
-            await html2pdf().set(opt).from(clone).save();
+
+            const renderedImages = Array.from(wrapper.querySelectorAll('img'));
+            await Promise.all(renderedImages.map((img) => new Promise((resolve) => {
+                if (img.complete) {
+                    resolve();
+                    return;
+                }
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+            })));
+
+            await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4',
+                compress: true,
+            });
+
+            for (let index = 0; index < pageSections.length; index += 1) {
+                const section = pageSections[index];
+                const canvas = await html2canvas(section, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                });
+
+                const imageData = canvas.toDataURL('image/jpeg', 0.98);
+                if (index > 0) {
+                    pdf.addPage('a4', 'portrait');
+                }
+                pdf.addImage(imageData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+            }
+
+            pdf.save(`Tour-Quotation-Chalo-On-Tour-${Date.now()}.pdf`);
             wrapper.parentNode?.removeChild(wrapper);
             toast.success('PDF downloaded successfully!');
         } catch (err) {
             console.error(err);
             toast.error('Download failed. Try Print instead.');
-            if (wrapper.parentNode) {
+            if (wrapper?.parentNode) {
                 wrapper.parentNode.removeChild(wrapper);
             }
         }
@@ -487,11 +548,7 @@ export default function TourPDFPage() {
         }
 
         const origin = window.location.origin;
-        const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-            .map((l) => l.href)
-            .filter((href) => href && (href.startsWith(origin) || href.startsWith('http')))
-            .map((href) => `<link rel="stylesheet" href="${href}" />`)
-            .join('\n');
+        const styles = collectDocumentStyles();
 
         let htmlContent = pdfEl.outerHTML;
         if (origin && htmlContent.includes(' src="/')) {
@@ -504,7 +561,7 @@ export default function TourPDFPage() {
   <head>
     <meta charset="utf-8" />
     <title>Tour Quotation – Chalo On Tour</title>
-    ${styleLinks}
+    ${styles}
   </head>
   <body>
     ${htmlContent}
@@ -887,6 +944,33 @@ export default function TourPDFPage() {
                                         placeholder="One exclusion per line"
                                     />
                                 </Field>
+                                <Field label="Payment Policy">
+                                    <textarea
+                                        className={textareaCls}
+                                        rows={4}
+                                        value={data.paymentPolicy}
+                                        onChange={e => set('paymentPolicy', e.target.value)}
+                                        placeholder="One payment policy point per line"
+                                    />
+                                </Field>
+                                <Field label="Cancellation Policy">
+                                    <textarea
+                                        className={textareaCls}
+                                        rows={4}
+                                        value={data.cancellationPolicy}
+                                        onChange={e => set('cancellationPolicy', e.target.value)}
+                                        placeholder="One cancellation policy point per line"
+                                    />
+                                </Field>
+                                <Field label="Terms And Conditions">
+                                    <textarea
+                                        className={textareaCls}
+                                        rows={4}
+                                        value={data.termsAndConditions}
+                                        onChange={e => set('termsAndConditions', e.target.value)}
+                                        placeholder="One term or condition per line"
+                                    />
+                                </Field>
                                 <Field label="Tip For Memorable Trip">
                                     <textarea
                                         className={textareaCls}
@@ -930,7 +1014,7 @@ export default function TourPDFPage() {
                                 style={{ maxHeight: '90vh' }}
                             >
                                 <div style={{ transform: 'scale(0.75)', transformOrigin: 'top left', width: '133.33%' }}>
-                                    <TourPDFDocument data={data} ref={pdfRef} />
+                                    <TourPDFDocument data={data} ref={pdfRef} compactPreview />
                                 </div>
                             </div>
                         </div>

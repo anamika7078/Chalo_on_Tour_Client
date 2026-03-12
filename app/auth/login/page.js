@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '../../../contexts/AuthContext';
+import { getRoleHomePath } from '../../../lib/appPaths';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,7 +20,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (authLoading) return;
     if (user && ['superadmin', 'staff'].includes(user.role)) {
-      router.replace('/admin/dashboard');
+      router.replace(getRoleHomePath(user.role));
     }
   }, [user, authLoading, router]);
 
@@ -38,7 +39,7 @@ export default function LoginPage() {
       await login(email.trim(), password.trim());
       toast.success('Login successful!');
     } catch (err) {
-      toast.error(err.message || 'Login failed. Only Super Admin or Staff can access.');
+      toast.error(err.message || 'Login failed. Please check your email and password.');
       setLoading(false);
     }
   };

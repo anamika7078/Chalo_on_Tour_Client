@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import toast from 'react-hot-toast';
-import { X, UserPlus, User, Mail, Phone, Globe, Tag, Loader2, MapPin, Building2, Plus, Trash2, Route, CheckCircle, XCircle, CreditCard, AlertCircle, Plane, ImagePlus, Users } from 'lucide-react';
+import { X, UserPlus, User, Mail, Phone, Globe, Tag, Loader2, MapPin, Building2, Plus, Trash2, Route, CheckCircle, XCircle, CreditCard, AlertCircle, Plane, ImagePlus, Users, Car } from 'lucide-react';
 
 const STATUS_OPTIONS = [
   { value: 'new', label: 'New' },
@@ -11,6 +11,12 @@ const STATUS_OPTIONS = [
   { value: 'qualified', label: 'Qualified' },
   { value: 'booked', label: 'Booked' },
   { value: 'lost', label: 'Lost' },
+];
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'unpaid', label: 'Unpaid' },
+  { value: 'partial', label: 'Partial' },
+  { value: 'paid', label: 'Paid' },
 ];
 
 const initialForm = {
@@ -23,7 +29,13 @@ const initialForm = {
   status: 'new',
   notes: '',
   total_amount: '',
+  advance_amount: '',
+  advanceDueDate: '',
+  paymentDueDate: '',
+  payment_status: 'unpaid',
   packageCostPerPerson: '',
+  kidsPackageCostPerPerson: '',
+  kidsCount: '',
   paxCount: '',
   paxType: 'Adults',
   paxBreakup: [{ type: 'Adults', count: '' }],
@@ -38,6 +50,7 @@ const initialForm = {
   dropPoint: '',
   destinationsText: '',
   accommodation: [],
+  vehicles: [],
   flights: [],
   itinerary: [],
   inclusions: '',
@@ -49,7 +62,8 @@ const initialForm = {
   tripImages: [],
 };
 
-const emptyAccommodationRow = () => ({ hotelName: '', nights: '', roomType: 'Double', sharing: 'Double', destination: '', hotelTotalAmount: '', hotelPaidAmount: '' });
+const emptyAccommodationRow = () => ({ hotelName: '', nights: '', roomType: 'Double', sharing: 'Double', destination: '', hotelTotalAmount: '', hotelPaidAmount: '', hotelBalanceDueDate: '' });
+const emptyVehicleRow = () => ({ vehicleName: '', vehicleType: '', vehicleTotalAmount: '', vehicleAdvanceAmount: '', vehicleBalanceDueDate: '' });
 const emptyFlightRow = () => ({ from: '', to: '', airline: '', pnr: '', fare: '' });
 const emptyItineraryRow = () => ({ day: '', route: '', description: '', placesText: '' });
 const emptyPaxRow = () => ({ type: 'Adults', count: '' });
@@ -100,71 +114,14 @@ function readFilesAsDataUrls(files) {
   );
 }
 
-function mapTemplateToForm(template) {
-  if (!template) return null;
-  return {
-    paxType: template.paxType || 'Adults',
-    paxBreakup: mapPaxBreakupToForm(template),
-    packageCostPerPerson: template.packageCostPerPerson != null ? String(template.packageCostPerPerson) : '',
-    vehicleType: template.vehicleType || '',
-    hotelCategory: template.hotelCategory || '',
-    mealPlan: template.mealPlan || '',
-    tourNights: template.tourNights != null ? String(template.tourNights) : '',
-    tourDays: template.tourDays != null ? String(template.tourDays) : '',
-    pickupPoint: template.pickupPoint || '',
-    dropPoint: template.dropPoint || '',
-    destinationsText: Array.isArray(template.destinations) && template.destinations.length ? template.destinations.join(', ') : '',
-    accommodation: Array.isArray(template.accommodation) && template.accommodation.length
-      ? template.accommodation.map((a) => ({
-          hotelName: a.hotelName || '',
-          nights: a.nights != null ? String(a.nights) : '',
-          roomType: a.roomType || 'Double',
-          sharing: a.sharing || 'Double',
-          destination: a.destination || '',
-          hotelTotalAmount: a.hotelTotalAmount != null ? String(a.hotelTotalAmount) : '',
-          hotelPaidAmount: a.hotelPaidAmount != null ? String(a.hotelPaidAmount) : '',
-        }))
-      : [],
-    itinerary: Array.isArray(template.itinerary) && template.itinerary.length
-      ? template.itinerary.map((item) => ({
-          day: item.day != null ? String(item.day) : '',
-          route: item.route || '',
-          description: item.description || '',
-          placesText: Array.isArray(item.places) ? item.places.join('\n') : '',
-        }))
-      : [],
-    flights: Array.isArray(template.flights) && template.flights.length
-      ? template.flights.map((f) => ({
-          from: f.from || '',
-          to: f.to || '',
-          airline: f.airline || '',
-          pnr: f.pnr || '',
-          fare: f.fare != null ? String(f.fare) : '',
-        }))
-      : [],
-    inclusions: template.inclusions || '',
-    exclusions: template.exclusions || '',
-    payment_policy: template.payment_policy || '',
-    cancellation_policy: template.cancellation_policy || '',
-    termsAndConditions: template.termsAndConditions || '',
-    memorableTrip: template.memorableTrip || '',
-    tripImages: Array.isArray(template.tripImages) ? template.tripImages.filter(Boolean) : [],
-  };
-}
-
-export default function AddLeadModal({ open, onClose, onSuccess, initialTourData }) {
+export default function AddLeadModal({ open, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(initialForm);
 
   useEffect(() => {
     if (!open) return;
-    const mapped = mapTemplateToForm(initialTourData);
-    if (mapped) {
-      setForm((prev) => ({ ...prev, ...mapped }));
-    } else {
-      setForm(initialForm);
-    }
-  }, [open, initialTourData]);
+    setForm(initialForm);
+  }, [open]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -184,6 +141,21 @@ export default function AddLeadModal({ open, onClose, onSuccess, initialTourData
   };
   const removeAccommodationRow = (index) => {
     setForm((p) => ({ ...p, accommodation: (p.accommodation || []).filter((_, i) => i !== index) }));
+  };
+
+  const addVehicleRow = () => {
+    setForm((p) => ({ ...p, vehicles: [...(p.vehicles || []), emptyVehicleRow()] }));
+  };
+  const updateVehicleRow = (index, field, value) => {
+    setForm((p) => {
+      const next = [...(p.vehicles || [])];
+      if (!next[index]) next[index] = emptyVehicleRow();
+      next[index] = { ...next[index], [field]: value };
+      return { ...p, vehicles: next };
+    });
+  };
+  const removeVehicleRow = (index) => {
+    setForm((p) => ({ ...p, vehicles: (p.vehicles || []).filter((_, i) => i !== index) }));
   };
 
   const addFlightRow = () => {
@@ -262,6 +234,14 @@ export default function AddLeadModal({ open, onClose, onSuccess, initialTourData
         destination: (a.destination || '').trim(),
         hotelTotalAmount: a.hotelTotalAmount !== '' && a.hotelTotalAmount != null ? Number(a.hotelTotalAmount) : null,
         hotelPaidAmount: a.hotelPaidAmount !== '' && a.hotelPaidAmount != null ? Number(a.hotelPaidAmount) : null,
+        hotelBalanceDueDate: a.hotelBalanceDueDate || null,
+      }));
+      const vehicles = (form.vehicles || []).filter((v) => v.vehicleName?.trim() || v.vehicleType?.trim() || v.vehicleTotalAmount !== '' || v.vehicleAdvanceAmount !== '' || v.vehicleBalanceDueDate).map((v) => ({
+        vehicleName: (v.vehicleName || '').trim(),
+        vehicleType: (v.vehicleType || '').trim(),
+        vehicleTotalAmount: v.vehicleTotalAmount !== '' && v.vehicleTotalAmount != null ? Number(v.vehicleTotalAmount) : null,
+        vehicleAdvanceAmount: v.vehicleAdvanceAmount !== '' && v.vehicleAdvanceAmount != null ? Number(v.vehicleAdvanceAmount) : null,
+        vehicleBalanceDueDate: v.vehicleBalanceDueDate || null,
       }));
       const flights = (form.flights || []).filter((f) => (f.from || f.to || f.airline || f.pnr)?.trim() || f.fare !== '' && f.fare != null).map((f) => ({
         from: (f.from || '').trim(),
@@ -288,7 +268,13 @@ export default function AddLeadModal({ open, onClose, onSuccess, initialTourData
         status: form.status,
         notes: form.notes.trim() || undefined,
         total_amount: form.total_amount ? Number(form.total_amount) : undefined,
+        advance_amount: form.advance_amount ? Number(form.advance_amount) : undefined,
+        advanceDueDate: form.advanceDueDate || undefined,
+        paymentDueDate: form.paymentDueDate || undefined,
+        payment_status: form.payment_status,
         packageCostPerPerson: form.packageCostPerPerson ? Number(form.packageCostPerPerson) : undefined,
+        kidsPackageCostPerPerson: form.kidsPackageCostPerPerson ? Number(form.kidsPackageCostPerPerson) : undefined,
+        kidsCount: form.kidsCount ? Number(form.kidsCount) : undefined,
         paxCount: paxSummary.paxCount,
         paxType: paxSummary.paxType,
         paxBreakup: paxSummary.paxBreakup.length ? paxSummary.paxBreakup : undefined,
@@ -303,6 +289,7 @@ export default function AddLeadModal({ open, onClose, onSuccess, initialTourData
         dropPoint: form.dropPoint?.trim() || undefined,
         destinations,
         accommodation: accommodation.length ? accommodation : undefined,
+        vehicles: vehicles.length ? vehicles : undefined,
         flights: flights.length ? flights : undefined,
         itinerary: itinerary.length ? itinerary : undefined,
         inclusions: form.inclusions?.trim() || undefined,
@@ -409,8 +396,40 @@ export default function AddLeadModal({ open, onClose, onSuccess, initialTourData
                     <input name="total_amount" type="number" min={0} value={form.total_amount} onChange={handleChange} placeholder="e.g. 62500" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Package Cost Per Person (₹)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Advance Amount (₹)</label>
+                    <input name="advance_amount" type="number" min={0} value={form.advance_amount} onChange={handleChange} placeholder="e.g. 15000" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Adult Cost Per Person (₹)</label>
                     <input name="packageCostPerPerson" type="number" min={0} value={form.packageCostPerPerson} onChange={handleChange} placeholder="e.g. 12500" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Kids Cost Per Person (₹)</label>
+                    <input name="kidsPackageCostPerPerson" type="number" min={0} value={form.kidsPackageCostPerPerson} onChange={handleChange} placeholder="e.g. 8500" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Kids Count</label>
+                    <input name="kidsCount" type="number" min={0} value={form.kidsCount} onChange={handleChange} placeholder="e.g. 2" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
+                    <select name="payment_status" value={form.payment_status} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white">
+                      {PAYMENT_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Advance Due Date</label>
+                    <input name="advanceDueDate" type="date" value={form.advanceDueDate} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Due Date</label>
+                    <input name="paymentDueDate" type="date" value={form.paymentDueDate} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
                   </div>
                 </div>
                 <div className="rounded-lg border border-gray-200 p-3 space-y-3">
@@ -533,8 +552,61 @@ export default function AddLeadModal({ open, onClose, onSuccess, initialTourData
                           <input type="number" min={0} step={1} value={row.hotelTotalAmount ?? ''} onChange={(e) => updateAccommodationRow(i, 'hotelTotalAmount', e.target.value)} placeholder="Total for this hotel" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-0.5">Hotel Paid (Rs)</label>
+                          <label className="block text-xs font-medium text-gray-600 mb-0.5">Hotel Advance (Rs)</label>
                           <input type="number" min={0} step={1} value={row.hotelPaidAmount ?? ''} onChange={(e) => updateAccommodationRow(i, 'hotelPaidAmount', e.target.value)} placeholder="Paid for this hotel" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-medium text-gray-600 mb-0.5">Hotel Balance Due Date</label>
+                          <input type="date" value={row.hotelBalanceDueDate || ''} onChange={(e) => updateAccommodationRow(i, 'hotelBalanceDueDate', e.target.value)} className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 bg-cyan-50 border-b border-cyan-100 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Car className="h-5 w-5 text-cyan-700" />
+                  <h3 className="font-semibold text-gray-900">Vehicle Payments (Optional)</h3>
+                </div>
+                <button type="button" onClick={addVehicleRow} className="inline-flex items-center gap-1 text-sm font-medium text-cyan-700 hover:text-cyan-800">
+                  <Plus className="h-4 w-4" /> Add vehicle
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                {(form.vehicles || []).length === 0 ? (
+                  <p className="text-sm text-gray-500">No vehicles added. Click &quot;Add vehicle&quot; to add payment details.</p>
+                ) : (
+                  (form.vehicles || []).map((row, i) => (
+                    <div key={i} className="p-3 border border-gray-200 rounded-lg bg-gray-50/50 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">Vehicle #{i + 1}</span>
+                        <button type="button" onClick={() => removeVehicleRow(i)} className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1">
+                          <Trash2 className="h-3.5 w-3.5" /> Remove
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Name</label>
+                          <input value={row.vehicleName || ''} onChange={(e) => updateVehicleRow(i, 'vehicleName', e.target.value)} placeholder="e.g. Raj Travels" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Type</label>
+                          <input value={row.vehicleType || ''} onChange={(e) => updateVehicleRow(i, 'vehicleType', e.target.value)} placeholder="e.g. Innova Crysta" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Total (Rs)</label>
+                          <input type="number" min={0} step={1} value={row.vehicleTotalAmount ?? ''} onChange={(e) => updateVehicleRow(i, 'vehicleTotalAmount', e.target.value)} placeholder="Total for this vehicle" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Advance Payment Done (Rs)</label>
+                          <input type="number" min={0} step={1} value={row.vehicleAdvanceAmount ?? ''} onChange={(e) => updateVehicleRow(i, 'vehicleAdvanceAmount', e.target.value)} placeholder="Advance paid" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Balance Due Date</label>
+                          <input type="date" value={row.vehicleBalanceDueDate || ''} onChange={(e) => updateVehicleRow(i, 'vehicleBalanceDueDate', e.target.value)} className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
                         </div>
                       </div>
                     </div>

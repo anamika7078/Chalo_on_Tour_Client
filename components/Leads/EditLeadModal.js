@@ -5,7 +5,7 @@ import { api } from '../../lib/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { canEditPayment } from '../../lib/permissions';
-import { X, User, Mail, Phone, Globe, Tag, Loader2, MessageSquare, Building2, Plus, Trash2, Route, CheckCircle, XCircle, CreditCard, AlertCircle, Plane, ImagePlus, Users } from 'lucide-react';
+import { X, User, Mail, Phone, Globe, Tag, Loader2, MessageSquare, Building2, Plus, Trash2, Route, CheckCircle, XCircle, CreditCard, AlertCircle, Plane, ImagePlus, Users, Car } from 'lucide-react';
 
 const STATUS_OPTIONS = [
   { value: 'new', label: 'New' },
@@ -32,7 +32,11 @@ const initialForm = {
   assigned_to: '',
   total_amount: '',
   packageCostPerPerson: '',
+  kidsPackageCostPerPerson: '',
+  kidsCount: '',
   advance_amount: '',
+  advanceDueDate: '',
+  paymentDueDate: '',
   payment_status: 'unpaid',
   notes: '',
   followups: [],
@@ -50,6 +54,7 @@ const initialForm = {
   dropPoint: '',
   destinationsText: '',
   accommodation: [],
+  vehicles: [],
   flights: [],
   itinerary: [],
   inclusions: '',
@@ -61,7 +66,8 @@ const initialForm = {
   tripImages: [],
 };
 
-const emptyAccommodationRow = () => ({ hotelName: '', nights: '', roomType: 'Double', sharing: 'Double', destination: '', hotelTotalAmount: '', hotelPaidAmount: '' });
+const emptyAccommodationRow = () => ({ hotelName: '', nights: '', roomType: 'Double', sharing: 'Double', destination: '', hotelTotalAmount: '', hotelPaidAmount: '', hotelBalanceDueDate: '' });
+const emptyVehicleRow = () => ({ vehicleName: '', vehicleType: '', vehicleTotalAmount: '', vehicleAdvanceAmount: '', vehicleBalanceDueDate: '' });
 const emptyFlightRow = () => ({ from: '', to: '', airline: '', pnr: '', fare: '' });
 const emptyItineraryRow = () => ({ day: '', route: '', description: '', placesText: '' });
 const emptyPaxRow = () => ({ type: 'Adults', count: '' });
@@ -140,6 +146,16 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
             destination: a.destination || '',
             hotelTotalAmount: a.hotelTotalAmount != null ? String(a.hotelTotalAmount) : '',
             hotelPaidAmount: a.hotelPaidAmount != null ? String(a.hotelPaidAmount) : '',
+            hotelBalanceDueDate: a.hotelBalanceDueDate ? a.hotelBalanceDueDate.slice(0, 10) : '',
+          }))
+          : [];
+        const vehicles = Array.isArray(lead.vehicles) && lead.vehicles.length
+          ? lead.vehicles.map((v) => ({
+            vehicleName: v.vehicleName || '',
+            vehicleType: v.vehicleType || '',
+            vehicleTotalAmount: v.vehicleTotalAmount != null ? String(v.vehicleTotalAmount) : '',
+            vehicleAdvanceAmount: v.vehicleAdvanceAmount != null ? String(v.vehicleAdvanceAmount) : '',
+            vehicleBalanceDueDate: v.vehicleBalanceDueDate ? v.vehicleBalanceDueDate.slice(0, 10) : '',
           }))
           : [];
         const flights = Array.isArray(lead.flights) && lead.flights.length
@@ -170,7 +186,11 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
           assigned_to: a?._id ? a._id : (a || ''),
           total_amount: lead.total_amount != null ? String(lead.total_amount) : '',
           packageCostPerPerson: lead.packageCostPerPerson != null ? String(lead.packageCostPerPerson) : '',
+          kidsPackageCostPerPerson: lead.kidsPackageCostPerPerson != null ? String(lead.kidsPackageCostPerPerson) : '',
+          kidsCount: lead.kidsCount != null ? String(lead.kidsCount) : '',
           advance_amount: lead.advance_amount != null ? String(lead.advance_amount) : '',
+          advanceDueDate: lead.advanceDueDate ? lead.advanceDueDate.slice(0, 10) : '',
+          paymentDueDate: lead.paymentDueDate ? lead.paymentDueDate.slice(0, 10) : '',
           payment_status: lead.payment_status || 'unpaid',
           notes: lead.notes || '',
           followups: Array.isArray(lead.followups) ? lead.followups : [],
@@ -188,6 +208,7 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
           dropPoint: lead.dropPoint || '',
           destinationsText,
           accommodation,
+          vehicles,
           flights,
           itinerary,
           inclusions: lead.inclusions || '',
@@ -248,6 +269,21 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
   };
   const removeAccommodationRow = (index) => {
     setForm((p) => ({ ...p, accommodation: (p.accommodation || []).filter((_, i) => i !== index) }));
+  };
+
+  const addVehicleRow = () => {
+    setForm((p) => ({ ...p, vehicles: [...(p.vehicles || []), emptyVehicleRow()] }));
+  };
+  const updateVehicleRow = (index, field, value) => {
+    setForm((p) => {
+      const next = [...(p.vehicles || [])];
+      if (!next[index]) next[index] = emptyVehicleRow();
+      next[index] = { ...next[index], [field]: value };
+      return { ...p, vehicles: next };
+    });
+  };
+  const removeVehicleRow = (index) => {
+    setForm((p) => ({ ...p, vehicles: (p.vehicles || []).filter((_, i) => i !== index) }));
   };
 
   const addFlightRow = () => {
@@ -326,6 +362,14 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
         destination: (a.destination || '').trim(),
         hotelTotalAmount: a.hotelTotalAmount !== '' && a.hotelTotalAmount != null ? Number(a.hotelTotalAmount) : null,
         hotelPaidAmount: a.hotelPaidAmount !== '' && a.hotelPaidAmount != null ? Number(a.hotelPaidAmount) : null,
+        hotelBalanceDueDate: a.hotelBalanceDueDate || null,
+      }));
+      const vehicles = (form.vehicles || []).map((v) => ({
+        vehicleName: (v.vehicleName || '').trim(),
+        vehicleType: (v.vehicleType || '').trim(),
+        vehicleTotalAmount: v.vehicleTotalAmount !== '' && v.vehicleTotalAmount != null ? Number(v.vehicleTotalAmount) : null,
+        vehicleAdvanceAmount: v.vehicleAdvanceAmount !== '' && v.vehicleAdvanceAmount != null ? Number(v.vehicleAdvanceAmount) : null,
+        vehicleBalanceDueDate: v.vehicleBalanceDueDate || null,
       }));
       const flights = (form.flights || []).map((f) => ({
         from: (f.from || '').trim(),
@@ -353,7 +397,11 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
             assigned_to: form.assigned_to || null,
             total_amount: form.total_amount ? Number(form.total_amount) : 0,
             packageCostPerPerson: form.packageCostPerPerson ? Number(form.packageCostPerPerson) : undefined,
+            kidsPackageCostPerPerson: form.kidsPackageCostPerPerson ? Number(form.kidsPackageCostPerPerson) : undefined,
+            kidsCount: form.kidsCount ? Number(form.kidsCount) : undefined,
             advance_amount: form.advance_amount ? Number(form.advance_amount) : 0,
+            advanceDueDate: form.advanceDueDate || null,
+            paymentDueDate: form.paymentDueDate || null,
             payment_status: form.payment_status,
             notes: form.notes.trim() || '',
             followups: form.followups,
@@ -371,6 +419,7 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
             dropPoint: form.dropPoint?.trim() || undefined,
             destinations,
             accommodation,
+            vehicles,
             flights,
             itinerary,
             inclusions: form.inclusions?.trim() ?? '',
@@ -444,6 +493,8 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
                       <div className="p-4 space-y-4">
                         <div><label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label><input name="total_amount" type="number" min={0} value={form.total_amount} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
                         <div><label className="block text-sm font-medium text-gray-700 mb-1">Advance Amount</label><input name="advance_amount" type="number" min={0} value={form.advance_amount} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Advance Due Date</label><input name="advanceDueDate" type="date" value={form.advanceDueDate} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Payment Due Date</label><input name="paymentDueDate" type="date" value={form.paymentDueDate} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
                         <div><label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label><select name="payment_status" value={form.payment_status} onChange={handleChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 bg-white">{PAYMENT_STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></div>
                       </div>
                     </div>
@@ -456,7 +507,11 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
                     <div className="p-4 space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div><label className="block text-sm font-medium text-gray-700 mb-1">Package Cost (₹)</label><input name="total_amount" type="number" min={0} value={form.total_amount} onChange={handleChange} placeholder="e.g. 62500" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
-                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Package Cost Per Person (₹)</label><input name="packageCostPerPerson" type="number" min={0} value={form.packageCostPerPerson} onChange={handleChange} placeholder="e.g. 12500" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Adult Cost Per Person (₹)</label><input name="packageCostPerPerson" type="number" min={0} value={form.packageCostPerPerson} onChange={handleChange} placeholder="e.g. 12500" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Kids Cost Per Person (₹)</label><input name="kidsPackageCostPerPerson" type="number" min={0} value={form.kidsPackageCostPerPerson} onChange={handleChange} placeholder="e.g. 8500" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
+                        <div><label className="block text-sm font-medium text-gray-700 mb-1">Kids Count</label><input name="kidsCount" type="number" min={0} value={form.kidsCount} onChange={handleChange} placeholder="e.g. 2" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500" /></div>
                       </div>
                       <div className="rounded-lg border border-gray-200 p-3 space-y-3">
                         <div className="flex items-center justify-between gap-2">
@@ -548,8 +603,61 @@ export default function EditLeadModal({ open, leadId, onClose, onSuccess }) {
                                 <input type="number" min={0} step={1} value={row.hotelTotalAmount ?? ''} onChange={(e) => updateAccommodationRow(i, 'hotelTotalAmount', e.target.value)} placeholder="Total for this hotel" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
                               </div>
                               <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Hotel Paid (Rs)</label>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Hotel Advance (Rs)</label>
                                 <input type="number" min={0} step={1} value={row.hotelPaidAmount ?? ''} onChange={(e) => updateAccommodationRow(i, 'hotelPaidAmount', e.target.value)} placeholder="Paid for this hotel" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Hotel Balance Due Date</label>
+                                <input type="date" value={row.hotelBalanceDueDate || ''} onChange={(e) => updateAccommodationRow(i, 'hotelBalanceDueDate', e.target.value)} className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 bg-cyan-50 border-b border-cyan-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Car className="h-5 w-5 text-cyan-700" />
+                        <h3 className="font-semibold text-gray-900">Vehicle Payments</h3>
+                      </div>
+                      <button type="button" onClick={addVehicleRow} className="inline-flex items-center gap-1 text-sm font-medium text-cyan-700 hover:text-cyan-800">
+                        <Plus className="h-4 w-4" /> Add vehicle
+                      </button>
+                    </div>
+                    <div className="p-4 space-y-4">
+                      {(form.vehicles || []).length === 0 ? (
+                        <p className="text-sm text-gray-500">No vehicles. Click &quot;Add vehicle&quot; to add payment details.</p>
+                      ) : (
+                        (form.vehicles || []).map((row, i) => (
+                          <div key={i} className="p-3 border border-gray-200 rounded-lg bg-gray-50/50 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-700">Vehicle #{i + 1}</span>
+                              <button type="button" onClick={() => removeVehicleRow(i)} className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1">
+                                <Trash2 className="h-3.5 w-3.5" /> Remove
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Name</label>
+                                <input value={row.vehicleName || ''} onChange={(e) => updateVehicleRow(i, 'vehicleName', e.target.value)} placeholder="e.g. Raj Travels" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Type</label>
+                                <input value={row.vehicleType || ''} onChange={(e) => updateVehicleRow(i, 'vehicleType', e.target.value)} placeholder="e.g. Innova Crysta" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Total (Rs)</label>
+                                <input type="number" min={0} step={1} value={row.vehicleTotalAmount ?? ''} onChange={(e) => updateVehicleRow(i, 'vehicleTotalAmount', e.target.value)} placeholder="Total for this vehicle" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Advance Payment Done (Rs)</label>
+                                <input type="number" min={0} step={1} value={row.vehicleAdvanceAmount ?? ''} onChange={(e) => updateVehicleRow(i, 'vehicleAdvanceAmount', e.target.value)} placeholder="Advance paid" className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="block text-xs font-medium text-gray-600 mb-0.5">Vehicle Balance Due Date</label>
+                                <input type="date" value={row.vehicleBalanceDueDate || ''} onChange={(e) => updateVehicleRow(i, 'vehicleBalanceDueDate', e.target.value)} className="w-full px-2.5 py-1.5 rounded border border-gray-300 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500" />
                               </div>
                             </div>
                           </div>

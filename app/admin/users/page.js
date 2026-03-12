@@ -47,6 +47,16 @@ const createInitialAddForm = () => ({
   isActive: true,
 });
 
+const createInitialEditForm = () => ({
+  firstName: '',
+  lastName: '',
+  email: '',
+  role: 'staff',
+  phone: '',
+  password: '',
+  isActive: true,
+});
+
 export default function AdminUsersPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -59,10 +69,11 @@ export default function AdminUsersPage() {
   const [addForm, setAddForm] = useState(createInitialAddForm());
   const [addSaving, setAddSaving] = useState(false);
   const [editUser, setEditUser] = useState(null);
-  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', email: '', role: 'staff', phone: '', isActive: true });
+  const [editForm, setEditForm] = useState(createInitialEditForm());
   const [editSaving, setEditSaving] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [statusLoadingId, setStatusLoadingId] = useState(null);
 
   const loadDetails = () => {
     setLoading(true);
@@ -88,6 +99,23 @@ export default function AdminUsersPage() {
     }
     loadDetails();
   }, [user, authLoading, router]);
+
+  const handleToggleStatus = async (targetUser) => {
+    if (!targetUser?._id || targetUser._id === user?.id) return;
+    const nextStatus = targetUser.isActive === false;
+    setStatusLoadingId(targetUser._id);
+    try {
+      await api.put(`/users/${targetUser._id}`, { isActive: nextStatus });
+      setUsers((prev) => prev.map((item) => (
+        item._id === targetUser._id ? { ...item, isActive: nextStatus } : item
+      )));
+      toast.success(`User ${nextStatus ? 'activated' : 'deactivated'}`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to update status'));
+    } finally {
+      setStatusLoadingId(null);
+    }
+  };
 
   if (authLoading || (user && user.role !== 'superadmin')) {
     return (
@@ -136,7 +164,7 @@ export default function AdminUsersPage() {
             <div>
               <p className="text-sm font-medium text-gray-500">Total users</p>
               <p className="text-2xl font-bold text-gray-900">{loading ? '—' : totalUsers}</p>
-              <p className="text-xs text-gray-400">Staff & Super Admin</p>
+              <p className="text-xs text-gray-400">Portal Users & Super Admin</p>
             </div>
           </div>
         </div>
@@ -180,7 +208,7 @@ export default function AdminUsersPage() {
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${u.role === 'superadmin' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
                           <Shield className="h-3 w-3" />
-                          {u.role === 'superadmin' ? 'Super Admin' : 'Staff'}
+                          {u.role === 'superadmin' ? 'Super Admin' : 'Portal User'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
@@ -192,16 +220,33 @@ export default function AdminUsersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={u.isActive !== false ? 'text-green-600' : 'text-red-600'}>
-                          {u.isActive !== false ? 'Active' : 'Inactive'}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(u)}
+                            disabled={statusLoadingId === u._id || u._id === user?.id}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              u.isActive !== false ? 'bg-green-500' : 'bg-gray-300'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            title={u._id === user?.id ? 'You cannot change your own status here' : u.isActive !== false ? 'Deactivate user' : 'Activate user'}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                u.isActive !== false ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                          <span className={u.isActive !== false ? 'text-green-600' : 'text-red-600'}>
+                            {statusLoadingId === u._id ? 'Updating...' : u.isActive !== false ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button type="button" onClick={() => setViewUser(u)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700" title="View">
                             <Eye className="h-4 w-4" />
                           </button>
-                          <button type="button" onClick={() => { setEditUser(u); setEditForm({ firstName: u.firstName || '', lastName: u.lastName || '', email: u.email || '', role: u.role || 'staff', phone: u.phone || '', isActive: u.isActive !== false }); }} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600" title="Edit">
+                          <button type="button" onClick={() => { setEditUser(u); setEditForm({ firstName: u.firstName || '', lastName: u.lastName || '', email: u.email || '', role: u.role || 'staff', phone: u.phone || '', password: '', isActive: u.isActive !== false }); }} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-blue-600" title="Edit">
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button type="button" onClick={() => setDeleteUserId(u._id)} disabled={u._id === user?.id} className="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed" title={u._id === user?.id ? 'Cannot delete yourself' : 'Delete'}>
@@ -228,7 +273,7 @@ export default function AdminUsersPage() {
               <div className="space-y-3 text-sm">
                 <p><span className="text-gray-500">Name:</span> <span className="font-medium">{viewUser.firstName} {viewUser.lastName}</span></p>
                 <p><span className="text-gray-500">Email:</span> {viewUser.email}</p>
-                <p><span className="text-gray-500">Role:</span> {viewUser.role === 'superadmin' ? 'Super Admin' : 'Staff'}</p>
+                <p><span className="text-gray-500">Role:</span> {viewUser.role === 'superadmin' ? 'Super Admin' : 'Portal User'}</p>
                 <p><span className="text-gray-500">Phone:</span> {viewUser.phone || '—'}</p>
                 <p><span className="text-gray-500">Last login:</span> {formatLastLogin(viewUser.lastLogin)}</p>
                 <p><span className="text-gray-500">Status:</span> <span className={viewUser.isActive !== false ? 'text-green-600' : 'text-red-600'}>{viewUser.isActive !== false ? 'Active' : 'Inactive'}</span></p>
@@ -294,7 +339,7 @@ export default function AdminUsersPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                   <select value={addForm.role} onChange={(e) => setAddForm((f) => ({ ...f, role: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white">
-                    <option value="staff">Staff</option>
+                    <option value="staff">Portal User</option>
                     <option value="superadmin">Super Admin</option>
                   </select>
                 </div>
@@ -357,9 +402,13 @@ export default function AdminUsersPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                   <select value={editForm.role} onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white">
-                    <option value="staff">Staff</option>
+                    <option value="staff">Portal User</option>
                     <option value="superadmin">Super Admin</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New password</label>
+                  <input type="password" value={editForm.password} onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" minLength={6} placeholder="Leave blank to keep current password" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
@@ -385,25 +434,25 @@ export default function AdminUsersPage() {
         {deleteUserId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !deleteLoading && setDeleteUserId(null)}>
             <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Deactivate user?</h3>
-              <p className="text-sm text-gray-600 mb-4">The user will be marked inactive and cannot log in. You can reactivate them later from Edit.</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete user?</h3>
+              <p className="text-sm text-gray-600 mb-4">This will permanently delete the user account. Deleted users cannot log in again unless you create them again.</p>
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => !deleteLoading && setDeleteUserId(null)} className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">Cancel</button>
                 <button type="button" onClick={async () => {
                   setDeleteLoading(true);
                   try {
                     await api.delete(`/users/${deleteUserId}`);
-                    toast.success('User deactivated');
+                    toast.success('User deleted');
                     setDeleteUserId(null);
                     loadDetails();
                   } catch (err) {
-                    toast.error(getErrorMessage(err, 'Failed to deactivate'));
+                    toast.error(getErrorMessage(err, 'Failed to delete user'));
                   } finally {
                     setDeleteLoading(false);
                   }
                 }} disabled={deleteLoading} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-60 inline-flex items-center gap-2">
                   {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  Deactivate
+                  Delete
                 </button>
               </div>
             </div>

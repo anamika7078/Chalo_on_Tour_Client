@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '../../../components/Layout/DashboardLayout';
 import { useAuth } from '../../../contexts/AuthContext';
 import { api } from '../../../lib/api';
+import { getLeadsPath } from '../../../lib/appPaths';
 import Link from 'next/link';
 import { MapPin, Calendar, ArrowRight, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,6 +18,7 @@ export default function TripsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [destination, setDestination] = useState('');
+  const leadsPath = getLeadsPath(user);
 
   useEffect(() => {
     if (!user || authLoading) return;
@@ -58,7 +60,7 @@ export default function TripsPage() {
         <div className="flex-shrink-0 flex items-center justify-between gap-4 mb-4">
           <h1 className="text-xl font-bold text-primary-900">Trip plans</h1>
           <Link
-            href="/admin/leads"
+            href={leadsPath}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium text-sm shadow-sm transition-colors"
           >
             <Users className="h-4 w-4" />
@@ -151,7 +153,7 @@ export default function TripsPage() {
                       <td className="px-4 py-3 text-gray-600">{assignedName(t)}</td>
                       <td className="px-4 py-3">
                         <Link
-                          href={`/admin/leads/${t._id}`}
+                          href={`${leadsPath}/${t._id}`}
                           className="inline-flex items-center gap-1 text-primary-600 hover:text-primary-700 font-medium"
                         >
                           Open <ArrowRight className="h-3.5 w-3.5" />

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Menu, Activity, ChevronDown, User, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { api, getProfileImageUrl } from '../../lib/api';
+import { getLeadsPath } from '../../lib/appPaths';
 
 function formatTimeAgo(dateStr) {
   if (!dateStr) return '';
@@ -27,6 +28,10 @@ export default function DashboardHeader({ onMenuClick }) {
   const [activities, setActivities] = useState([]);
   const [loadingActivity, setLoadingActivity] = useState(false);
   const dropdownRef = useRef(null);
+  const leadsPath = getLeadsPath(user);
+  const appTitle = user?.role === 'staff' ? 'ChaloOnTour Portal' : 'ChaloOnTour Admin';
+  const activityTitle = user?.role === 'staff' ? 'My activity' : 'Staff activity';
+  const activitySubtitle = user?.role === 'staff' ? 'Recently updated assigned leads' : 'Recently updated leads';
 
   useEffect(() => {
     if (activityOpen && activities.length === 0) {
@@ -54,7 +59,7 @@ export default function DashboardHeader({ onMenuClick }) {
         <button type="button" className="lg:hidden p-2 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" onClick={onMenuClick}>
           <Menu className="h-6 w-6" />
         </button>
-        <h1 className="text-lg font-semibold text-gray-900 truncate">ChaloOnTour Admin</h1>
+        <h1 className="text-lg font-semibold text-gray-900 truncate">{appTitle}</h1>
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="relative" ref={dropdownRef}>
             <button
@@ -69,8 +74,8 @@ export default function DashboardHeader({ onMenuClick }) {
             {activityOpen && (
               <div className="absolute right-0 top-full mt-1 w-80 max-h-[min(400px,70vh)] overflow-hidden bg-white rounded-xl shadow-lg border border-gray-200 z-50 flex flex-col">
                 <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-                  <h3 className="text-sm font-semibold text-gray-900">Staff activity</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Recently updated leads</p>
+                  <h3 className="text-sm font-semibold text-gray-900">{activityTitle}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{activitySubtitle}</p>
                 </div>
                 <div className="overflow-y-auto flex-1 min-h-0">
                   {loadingActivity ? (
@@ -86,7 +91,7 @@ export default function DashboardHeader({ onMenuClick }) {
                         return (
                           <li key={a._id}>
                             <Link
-                              href={`/admin/leads/${a._id}`}
+                              href={`${leadsPath}/${a._id}`}
                               onClick={() => setActivityOpen(false)}
                               className="flex gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
                             >
@@ -112,7 +117,7 @@ export default function DashboardHeader({ onMenuClick }) {
                 </div>
                 <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
                   <Link
-                    href="/admin/leads"
+                    href={leadsPath}
                     onClick={() => setActivityOpen(false)}
                     className="text-sm font-medium text-red-600 hover:text-red-700"
                   >

@@ -14,6 +14,7 @@ import AddLeadModal from '../../../components/Leads/AddLeadModal'
 import LeadDetailsModal from '../../../components/Leads/LeadDetailsModal'
 import EditLeadModal from '../../../components/Leads/EditLeadModal'
 import { checkEntryPermission, canDeleteLead as canDeleteLeadFn, canUploadExcel as canUploadExcelFn, canCreateLead as canCreateLeadFn, canAssignLead as canAssignLeadFn } from '../../../lib/permissions'
+import { getLeadsPath, getRoleHomePath, getScopedPath } from '../../../lib/appPaths'
 
 // Helper to get token from localStorage (persists across sessions)
 const getToken = () => {
@@ -51,33 +52,19 @@ export default function AdminLeadsPage() {
   const { user, loading: authLoading, checkPermission } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const leadsPath = getLeadsPath(user)
+  const dashboardPath = getRoleHomePath(user)
+  const tourPdfPath = getScopedPath(user, '/tour-pdf')
 
-  // Open modal from query (e.g. /admin/leads?add=1, ?view=id, ?edit=id, ?template=id)
+  // Open modal from query (e.g. /admin/leads?add=1, ?view=id, ?edit=id)
   useEffect(() => {
     if (authLoading || !user) return
     const add = searchParams.get('add')
-    const templateId = searchParams.get('template')
     const viewId = searchParams.get('view')
     const editId = searchParams.get('edit')
     if (add === '1') {
-      if (templateId) {
-        api.get(`/templates/${templateId}`)
-          .then((r) => {
-            setAddModalInitialTourData(r.data.template)
-            setShowAddModal(true)
-            router.replace('/admin/leads', { scroll: false })
-          })
-          .catch(() => {
-            toast.error('Template not found')
-            setAddModalInitialTourData(null)
-            setShowAddModal(true)
-            router.replace('/admin/leads', { scroll: false })
-          })
-      } else {
-        setAddModalInitialTourData(null)
-        setShowAddModal(true)
-        router.replace('/admin/leads', { scroll: false })
-      }
+      setShowAddModal(true)
+      router.replace(leadsPath, { scroll: false })
     } else if (viewId) {
       setEditLeadId(null)
       setShowEditModal(false)
@@ -85,25 +72,25 @@ export default function AdminLeadsPage() {
         setViewLead(r.data.lead)
         setShowViewModal(true)
       }).catch(() => toast.error('Lead not found'))
-      router.replace('/admin/leads', { scroll: false })
+      router.replace(leadsPath, { scroll: false })
     } else if (editId) {
       setViewLead(null)
       setShowViewModal(false)
       setEditLeadId(editId)
       setShowEditModal(true)
-      router.replace('/admin/leads', { scroll: false })
+      router.replace(leadsPath, { scroll: false })
     }
-  }, [searchParams, authLoading, user])
+  }, [searchParams, authLoading, user, leadsPath, router])
 
   // Role-based access control
   useEffect(() => {
     if (!authLoading && user) {
       if (!checkPermission('leads', 'view')) {
         toast.error('You do not have permission to view Leads')
-        router.push('/admin/dashboard')
+        router.push(dashboardPath)
       }
     }
-  }, [user, authLoading, router, checkPermission])
+  }, [user, authLoading, router, checkPermission, dashboardPath])
 
   // Role-based feature visibility
   const isSuperAdmin = user?.role === 'superadmin'
@@ -115,7 +102,7 @@ export default function AdminLeadsPage() {
   const canEditLead = true
   const canDeleteLead = canDeleteLeadFn(user)
   const canUploadExcelBtn = canUploadExcelFn(user)
-  const canAssignLeadBtn = canAssignLeadFn(user)
+  const canAssignLeadBtn = isSuperAdmin && canAssignLeadFn(user)
 
   const canBulkActions = canEditLead || canDeleteLead
 
@@ -169,7 +156,6 @@ export default function AdminLeadsPage() {
   const metadataFetchedRef = useRef(false)
   const lastFilterStateRef = useRef(null)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [addModalInitialTourData, setAddModalInitialTourData] = useState(null)
   const [showViewModal, setShowViewModal] = useState(false)
   const [viewLead, setViewLead] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -243,7 +229,7 @@ export default function AdminLeadsPage() {
       return
     }
 
-    router.push(`/admin/tour-pdf?leadId=${encodeURIComponent(leadId)}&preview=1`)
+    router.push(`${tourPdfPath}?leadId=${encodeURIComponent(leadId)}&preview=1`)
   }
 
   // Separate effect for initial data fetch (runs once on auth)
@@ -694,6 +680,7 @@ export default function AdminLeadsPage() {
   }
 
   const handleQuickAssign = async (leadId, agentId) => {
+    if (!canAssignLeadBtn) return
     const currentLead = leads.find(lead => String(getLeadId(lead)) === String(leadId))
     const currentId = currentLead?.assigned_to?._id ? String(currentLead.assigned_to._id) : (currentLead?.assigned_to ? String(currentLead.assigned_to) : null)
     const newAgentId = agentId ? String(agentId) : null
@@ -1104,6 +1091,7 @@ export default function AdminLeadsPage() {
   }
 
   const handleBulkAssign = async () => {
+    if (!canAssignLeadBtn) return
     if (selectedLeads.length === 0 || !bulkAgent) {
       toast.error('Please select leads and an agent')
       return
@@ -2631,9 +2619,8 @@ export default function AdminLeadsPage() {
 
       <AddLeadModal
         open={showAddModal}
-        onClose={() => { setShowAddModal(false); setAddModalInitialTourData(null); }}
+        onClose={() => { setShowAddModal(false); }}
         onSuccess={fetchLeads}
-        initialTourData={addModalInitialTourData}
       />
 
       {showUploadExcelModal && (

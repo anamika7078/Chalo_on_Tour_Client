@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
 import { getRoleHomePath } from '../../lib/appPaths';
 
-export default function AdminLayout({ children }) {
+export default function PortalLayout({ children }) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -15,7 +15,7 @@ export default function AdminLayout({ children }) {
       router.replace('/auth/login');
       return;
     }
-    if (user.role !== 'superadmin') {
+    if (user.role !== 'staff') {
       router.replace(getRoleHomePath(user.role));
     }
   }, [user, loading, router]);
@@ -28,7 +28,7 @@ export default function AdminLayout({ children }) {
     );
   }
 
-  if (!user || user.role !== 'superadmin') {
+  if (!user || user.role !== 'staff') {
     return null;
   }
 

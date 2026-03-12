@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../lib/api';
+import { getRoleHomePath } from '../lib/appPaths';
 
 const getToken = () => (typeof window === 'undefined' ? null : localStorage.getItem('token'));
 const setToken = (token) => { if (typeof window !== 'undefined') localStorage.setItem('token', token); };
@@ -48,7 +49,7 @@ export function AuthProvider({ children }) {
     const allowedRoles = ['superadmin', 'staff'];
     if (!u || !allowedRoles.includes(u.role)) {
       removeToken();
-      throw new Error('Access denied. Only Super Admin or Staff can access this app.');
+      throw new Error('Access denied. Only active admin or portal users can access this app.');
     }
     setToken(token);
     setUser(u);
@@ -56,7 +57,7 @@ export function AuthProvider({ children }) {
       const meRes = await api.get('/auth/me');
       if (meRes.data && meRes.data.user) setUser(meRes.data.user);
     } catch (_) {}
-    router.push('/admin/dashboard');
+    router.push(getRoleHomePath(u.role));
   };
 
   const logout = () => {
