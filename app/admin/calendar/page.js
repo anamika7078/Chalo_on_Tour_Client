@@ -131,11 +131,8 @@ export default function CalendarPage() {
   return (
     <DashboardLayout>
       <div className="h-full flex flex-col overflow-hidden">
-        <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex-shrink-0 flex items-center justify-between gap-3 mb-4">
           <h1 className="text-xl font-bold text-primary-900">Reminders</h1>
-          <div className="text-sm text-gray-600">
-            Payment reminders show `qualified` and `booked` leads. Trip reminders show active leads for the next {lookaheadDays} days.
-          </div>
         </div>
 
         {loading ? (
